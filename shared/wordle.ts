@@ -4,7 +4,12 @@
  * `#shared`:  import { ... } from '#shared/wordle'
  */
 import { VALID_WORDS } from "#shared/words/valid-words";
-import { ANSWER_WORDS } from "#shared/words/answer-words";
+import {
+  ANSWER_WORDS,
+  COMMON_WORDS,
+  UNCOMMON_WORDS,
+  RARE_WORDS,
+} from "#shared/words/answer-words";
 
 /** Numero di lettere di una parola (Wordle classico: 5). */
 export const WORD_LENGTH = 5;
@@ -132,14 +137,65 @@ export function isValidWord(word: string): boolean {
   return VALID_WORD_SET.has(word.trim().toLowerCase());
 }
 
+// Da quale livello entrano in gioco le parole meno comuni. Fino al terzo si
+// pesca solo fra quelle di tutti i giorni; dal quarto si aggiungono le
+// `uncommon`, dal nono anche le `rare`.
+//
+// Soglie basse di proposito: la maggior parte delle partite finisce fra il
+// livello 3 e il 4 (vedi la taratura dei prezzi degli aiuti qui sopra), quindi
+// spostarle più in là renderebbe la difficoltà crescente invisibile a quasi
+// tutti, e l'unico effetto sarebbe un gioco più facile.
+const UNCOMMON_FROM_LEVEL = 4;
+const RARE_FROM_LEVEL = 9;
+
+// I barattoli da cui pescare, uniti una volta sola all'avvio come VALID_WORD_SET
+// più sopra: fonderli dentro la funzione significherebbe ricostruire 1.762
+// elementi a ogni parola nuova, per poi buttarli un istante dopo.
+//
+// Sono CUMULATIVI, non separati: al nono livello le parole comuni possono
+// ancora uscire, solo più di rado. Sostituire il barattolo invece di allargarlo
+// creerebbe un muro — le parole facili sparirebbero di colpo proprio dove il
+// timer si è già accorciato — e renderebbe irrecuperabile qualunque parola
+// etichettata male, visto che le etichette del dizionario sono generate e non
+// prese da un corpus reale.
+const EARLY_POOL = COMMON_WORDS;
+const MID_POOL = [...COMMON_WORDS, ...UNCOMMON_WORDS];
+
 /**
- * Sceglie una soluzione a caso dalla lista delle risposte. Math.random va
- * benissimo qui: la scelta deve solo essere imprevedibile per il giocatore, non
- * sicura dal punto di vista crittografico.
+ * Le parole in gioco a un dato livello.
+ *
+ * L'ordine dei due controlli conta: partendo dalla soglia più bassa, un livello
+ * alto soddisfarebbe già quella e si fermerebbe lì, e le parole rare non
+ * uscirebbero mai. Si guarda quindi prima la soglia più alta.
+ *
+ * Il terzo barattolo è ANSWER_WORDS così com'è, invece di rifondere le tre
+ * fasce: è già la loro unione, e ricostruirla qui vorrebbe dire tenere allineate
+ * a mano due liste che devono essere identiche.
  */
-export function pickRandomAnswer(): string {
-  const index = Math.floor(Math.random() * ANSWER_WORDS.length);
-  return ANSWER_WORDS[index]!;
+function poolForLevel(level: number): readonly string[] {
+  if (level >= RARE_FROM_LEVEL) {
+    return ANSWER_WORDS;
+  }
+  if (level >= UNCOMMON_FROM_LEVEL) {
+    return MID_POOL;
+  }
+  return EARLY_POOL;
+}
+
+/**
+ * Sceglie una soluzione a caso fra quelle in gioco al livello indicato.
+ * Math.random va benissimo qui: la scelta deve solo essere imprevedibile per il
+ * giocatore, non sicura dal punto di vista crittografico.
+ *
+ * Il barattolo si chiede una volta sola e si tiene in una const: le due righe
+ * qui sotto devono lavorare sulla STESSA lista, e prendendola due volte si apre
+ * la porta a un indice calcolato su un elenco e letto da un altro — che a volte
+ * dà la parola sbagliata e a volte `undefined`.
+ */
+export function pickRandomAnswer(level: number): string {
+  const pool = poolForLevel(level);
+  const index = Math.floor(Math.random() * pool.length);
+  return pool[index]!;
 }
 
 /**

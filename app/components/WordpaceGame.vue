@@ -749,7 +749,7 @@ async function fetchDefinition(word: string) {
 
 /** Carica una parola nuova e pulisce la griglia per il turno successivo. */
 function loadWord() {
-  answer.value = pickRandomAnswer();
+  answer.value = pickRandomAnswer(level.value);
   fetchDefinition(answer.value); // parte adesso, arriverà molto prima che serva
   guesses.value = [];
   evaluations.value = [];

@@ -15,6 +15,10 @@ endorsed by, The New York Times.
   **🟩 green** (right spot), **🟨 yellow** (in the word, wrong spot) or
   **⬜ grey** (not in the word).
 - Solve a word to **advance a level**, bank points, and get a fresh word.
+- **Words get rarer as you climb.** The first three levels only draw from
+  everyday words; from level 4 the less common ones join in, and from level 9
+  the rare ones too. The pools add up rather than replace each other, so a
+  familiar word can still turn up at level 20 — just less often.
 - Every level has a **countdown timer**. It starts at 5 minutes and shrinks each
   level (exponential decay toward a 30-second floor), so the pressure keeps
   building. Time left over carries into the next level, capped at 5 minutes.
@@ -83,7 +87,8 @@ levels are worth more.
 ```
 app/components/WordpaceGame.vue  the game (state, board, keyboard, timer, UI)
 shared/wordle.ts                pure rules: evaluate, validate, timer formula
-shared/words/                   the official guess + answer word lists
+shared/words/answer-words.ts    the answers, split into three frequency tiers
+shared/words/valid-words.ts     every word accepted as a guess
 shared/definitions.ts           dictionary lookup, with a never-throwing fallback
 shared/words/definitions.ts     2,315 generated entries (do not edit by hand)
 shared/leaderboard.ts           leaderboard rules shared by client and server
@@ -131,6 +136,7 @@ consistent with each other.
 ```bash
 node --env-file=.env scripts/generate-definitions.mjs   # generate what's missing
 node scripts/build-definitions.mjs                      # assemble + validate
+node scripts/build-answer-tiers.mjs                     # re-split answers by tier
 ```
 
 - **Generation** needs `ANTHROPIC_API_KEY` in `.env`. It asks for 50 words per
@@ -145,6 +151,11 @@ node scripts/build-definitions.mjs                      # assemble + validate
   says so.
 - Intermediate JSON blocks live in `scripts/.cache/` and are git-ignored; they
   can be regenerated at any time.
+- **Tiering** reads the `level` field back out of the dictionary and rewrites
+  `answer-words.ts` grouped by it. It exists because the dictionary is 449 KB
+  and stays on the server, while the word has to be picked in the browser, so
+  the one bit the client needs — which tier a word belongs to — is baked into a
+  20 KB file instead. Run it whenever the dictionary changes.
 
 ## Deployment
 
