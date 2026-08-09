@@ -19,9 +19,11 @@ endorsed by, The New York Times.
   everyday words; from level 4 the less common ones join in, and from level 9
   the rare ones too. The pools add up rather than replace each other, so a
   familiar word can still turn up at level 20 — just less often.
-- Every level has a **countdown timer**. It starts at 5 minutes and shrinks each
-  level (exponential decay toward a 30-second floor), so the pressure keeps
-  building. Time left over carries into the next level, capped at 5 minutes.
+- Every level has a **countdown timer**. It starts at 5 minutes and each level
+  hands out 8% less than the one before, fading toward nothing — so the late
+  game is spent on savings rather than on what the level gives you.
+- Time left over **carries into the next level**, capped at 5 minutes, which is
+  what makes solving fast worth something beyond the points.
 - Each guess **rewards time** for its useful letters — +10s per new green, +5s
   per new yellow — but only the *first* time you discover each one, so you can't
   farm time by re-typing the same letters. A guess that reveals nothing costs 5s.

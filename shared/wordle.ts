@@ -8,7 +8,6 @@ import {
   ANSWER_WORDS,
   COMMON_WORDS,
   UNCOMMON_WORDS,
-  RARE_WORDS,
 } from "#shared/words/answer-words";
 
 /** Numero di lettere di una parola (Wordle classico: 5). */
@@ -19,7 +18,6 @@ export const MAX_ATTEMPTS = 6;
 
 /** Impostazioni del timer per i livelli arcade (vedi timeForLevel). */
 export const START_TIME = 300; // secondi al livello 1
-export const FLOOR_TIME = 30; // non si scende mai sotto questi secondi
 export const DECAY_RATE = 0.92; // quanto si accorcia per livello (più basso = più duro)
 
 // Tetto massimo al tempo riportato da un livello all'altro. Per ora coincide
@@ -247,14 +245,30 @@ export function evaluateGuess(guess: string, answer: string): LetterState[] {
 }
 
 /**
- * Secondi disponibili a un dato livello. Calano in modo esponenziale verso
- * FLOOR_TIME, senza mai raggiungerlo:
- * tempo = pavimento + (partenza - pavimento) * fattore^(livello - 1)
+ * Secondi regalati all'inizio di un livello. Calano in modo esponenziale verso
+ * lo zero: tempo = partenza * fattore^(livello - 1).
+ *
+ * L'esponente è `livello - 1` e non `livello` perché al primo livello non è
+ * ancora passato niente: qualsiasi numero elevato a zero fa 1, ed è così che la
+ * formula dice "tempo pieno". Con `livello` la curva sarebbe tutta spostata
+ * avanti di uno e si partirebbe già con 276 secondi invece di 300.
+ *
+ * C'era un pavimento di 30 secondi, nato quando ogni livello ripartiva da zero:
+ * lì serviva, o dal quarantesimo in poi si sarebbe cominciato con undici secondi
+ * e nessuna via d'uscita. Da quando il tempo avanzato si porta avanti
+ * (grantLevelTime nel componente), quella garanzia la dà il tesoretto che si è
+ * costruito chi ha giocato in fretta, e il pavimento era rimasto a fare danni:
+ * assicurando ~30 secondi per sempre, rendeva il livello 45 e il livello 90
+ * identici e appiattiva la difficoltà proprio dove doveva stringere.
+ *
+ * Senza, il finale di partita diventa una fase a sé: da un certo punto il
+ * livello non regala quasi più niente e si vive di risparmi e di lettere
+ * indovinate. Il gioco resta comunque illimitato per chi gioca perfetto — cinque
+ * verdi valgono cinquanta secondi per una parola che si scrive in cinque — e
+ * quello dipende da TIME_BONUS_CORRECT, non da qui.
  */
 export function timeForLevel(level: number): number {
-  return Math.floor(
-    FLOOR_TIME + (START_TIME - FLOOR_TIME) * Math.pow(DECAY_RATE, level - 1),
-  );
+  return Math.floor(START_TIME * Math.pow(DECAY_RATE, level - 1));
 }
 
 /**
