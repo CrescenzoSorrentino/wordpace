@@ -137,7 +137,7 @@ Environment variables (see `.env.example`):
 ## The dictionary
 
 `shared/words/definitions.ts` holds one entry per answer word — part of speech,
-IPA, a native-frequency label, definition and example sentence. It is generated, not
+IPA, definition and example sentence. It is generated, not
 hand-written, so that all 2,315 entries come out of a single prompt and stay
 consistent with each other.
 

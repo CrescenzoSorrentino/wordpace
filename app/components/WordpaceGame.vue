@@ -255,7 +255,6 @@ const board = computed(() => {
 const EMPTY_DEFINITION: WordEntry = {
   pos: "",
   ipa: "",
-  level: "",
   cefr: "",
   en: "",
   example: "",
@@ -1123,7 +1122,7 @@ onBeforeUnmount(() => {
           v-if="
             currentDefinition.pos ||
             currentDefinition.ipa ||
-            currentDefinition.level
+            currentDefinition.cefr
           "
           class="wordle__definition-meta"
         >

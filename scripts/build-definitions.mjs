@@ -34,7 +34,6 @@ const POS = [
   "noun", "verb", "adjective", "adverb",
   "preposition", "conjunction", "pronoun", "interjection", "determiner",
 ];
-const LEVELS = ["common", "uncommon", "rare"];
 
 for (const [word, def] of Object.entries(defs)) {
   if (typeof def?.pos !== "string" || !def.pos.trim())
@@ -45,8 +44,6 @@ for (const [word, def] of Object.entries(defs)) {
   // L'IPA va fra barre, come in ogni dizionario.
   if (typeof def?.ipa !== "string" || !/^\/.+\/$/.test(def.ipa))
     problems.push(`${word}: IPA mancante o non racchiuso fra barre`);
-  if (!LEVELS.includes(def?.level))
-    problems.push(`${word}: livello "${def?.level}" non riconosciuto`);
   if (typeof def?.en !== "string" || def.en.trim().length < 10)
     problems.push(`${word}: definizione mancante o troppo corta`);
   if (typeof def?.example !== "string" || def.example.trim().length < 10)
@@ -80,7 +77,6 @@ const body = words
       `  ${w}: {\n` +
       `    pos: "${esc(d.pos)}",\n` +
       `    ipa: "${esc(d.ipa)}",\n` +
-      `    level: "${esc(d.level)}",\n` +
       `    en: "${esc(d.en)}",\n` +
       `    example: "${esc(d.example)}",\n` +
       `  },`
@@ -108,8 +104,6 @@ export interface WordDefinition {
   pos: string;
   /** Pronunciation in IPA, between slashes: "/aɪl/". */
   ipa: string;
-  /** How worth learning the word is: "common", "uncommon" or "rare". */
-  level: string;
   /** Short dictionary-style definition, in simple English. */
   en: string;
   /** A sentence using the word, to show it in context. */

@@ -51,7 +51,6 @@ export const MISSING_DEFINITION: WordEntry = {
   // resto di ciò che vede il giocatore.
   pos: "",
   ipa: "",
-  level: "",
   cefr: "",
   en: "No definition available for this word yet.",
   example: "",
