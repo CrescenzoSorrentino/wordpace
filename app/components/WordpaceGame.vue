@@ -81,7 +81,9 @@ const answer = ref(""); // la parola segreta di questo livello
 const guesses = ref<string[]>([]); // i tentativi già inviati, in minuscolo
 const evaluations = ref<LetterState[][]>([]); // una riga di colori per tentativo
 const currentGuess = ref(""); // la parola che si sta scrivendo ora
-const status = ref<GameStatus>("playing"); // in gioco / spiegazione / persa
+// Si parte già in partita: a questa pagina ci si arriva premendo "Play" dalla
+// home, quindi la decisione di cominciare è stata presa un istante fa.
+const status = ref<GameStatus>("playing");
 const nextStep = ref<NextStep>("next-level"); // dove si va dopo la spiegazione
 const level = ref(1); // livello attuale, parte da 1
 const score = ref(0); // punti accumulati in questa partita
@@ -595,24 +597,49 @@ function endRun() {
 }
 
 /**
- * A partita finita: scarica i punteggi migliori e decide se questo punteggio si
- * merita un posto (classifica non ancora piena, oppure batte l'ultimo dei
- * primi). Un punteggio di zero non entra mai. Se la rete non risponde non
- * succede nulla di grave: niente modulo del nome e lista vuota.
+ * Scarica i punteggi migliori del mese. Serve in due momenti: quando la partita
+ * finisce, per sapere se questo punteggio entra, e subito dopo aver salvato un
+ * nome, per rivedere la lista aggiornata.
+ *
+ * Restituisce se ha funzionato, e questo è il punto: una classifica VUOTA e una
+ * NON CARICATA a schermo si assomigliano ma vogliono risposte opposte (vedi
+ * finishRun). Senza il valore di ritorno, chi chiama non può distinguerle.
+ *
+ * Non solleva errori: una classifica mancante non deve fermare una partita.
  */
-async function finishRun() {
+async function loadLeaderboard(): Promise<boolean> {
   try {
     leaderboard.value = await $fetch<LeaderboardEntry[]>("/api/leaderboard");
-    const lowest = leaderboard.value[leaderboard.value.length - 1];
-    qualifies.value =
-      score.value > 0 &&
-      (leaderboard.value.length < LEADERBOARD_SIZE ||
-        score.value > (lowest?.score ?? 0));
+    return true;
   } catch (e) {
     console.error("Could not load leaderboard:", e);
     leaderboard.value = [];
-    qualifies.value = false;
+    return false;
   }
+}
+
+/**
+ * A partita finita: scarica i punteggi migliori e decide se questo punteggio si
+ * merita un posto (classifica non ancora piena, oppure batte l'ultimo dei
+ * primi). Un punteggio di zero non entra mai.
+ *
+ * La distinzione che conta: una classifica VUOTA (primo del mese, nessuno ha
+ * ancora giocato) fa entrare chiunque abbia fatto punti; una classifica NON
+ * CARICATA non permette di dire niente, quindi non si promette al giocatore un
+ * posto che potrebbe non esserci. Confondendole, il primo del mese nessuno
+ * entrerebbe più in classifica.
+ */
+async function finishRun() {
+  if (!(await loadLeaderboard())) {
+    qualifies.value = false;
+    return;
+  }
+
+  const lowest = leaderboard.value[leaderboard.value.length - 1];
+  qualifies.value =
+    score.value > 0 &&
+    (leaderboard.value.length < LEADERBOARD_SIZE ||
+      score.value > (lowest?.score ?? 0));
 }
 
 /** Salva il nome scritto col punteggio della partita, poi ricarica la classifica. */
@@ -626,7 +653,7 @@ async function submitScore() {
     });
     scoreSubmitted.value = true;
     qualifies.value = false; // nasconde il modulo del nome
-    leaderboard.value = await $fetch<LeaderboardEntry[]>("/api/leaderboard");
+    await loadLeaderboard(); // per rivedere la lista col proprio nome dentro
   } catch (e) {
     console.error("Could not submit score:", e);
 
@@ -861,7 +888,7 @@ watch([status, hintPanelOpen], ([current, hintsOpen]) => {
   document.body.style.overflow = covered ? "hidden" : "";
 });
 
-// Quando il componente compare a schermo: avvia la prima partita e si mette in
+// Quando il componente compare a schermo: avvia la partita e si mette in
 // ascolto della tastiera. Quando sparisce, smette di ascoltare (pulizia).
 onMounted(() => {
   newRun();
@@ -1238,9 +1265,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div v-if="visibleResultList === 'scores'" class="wordle__block">
-          <p v-if="!showResultTabs" class="wordle__label">
-            Best this month
-          </p>
+          <p v-if="!showResultTabs" class="wordle__label">Best this month</p>
           <ol class="wordle__scores">
             <li
               v-for="(entry, i) in leaderboard"

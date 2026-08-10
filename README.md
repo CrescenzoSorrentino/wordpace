@@ -75,7 +75,9 @@ levels are worth more.
 
 ## Tech
 
-- **Nuxt 4** / **Vue 3** (`<script setup>`), vanilla scoped CSS (BEM).
+- **Nuxt 4** / **Vue 3** (`<script setup>`), vanilla scoped CSS (BEM). Two
+  pages: a home that explains the game and does not run a clock, and the game
+  itself — the timer starts when you press Play, not when the page loads.
 - **Upstash Redis** for the leaderboard, stored as a sorted set (`ZADD` / `ZRANGE`)
   under a per-month key (`wordle:leaderboard:2026-08`), so the board resets on
   its own and old months expire instead of piling up.
@@ -92,6 +94,8 @@ levels are worth more.
   answer (~148 KB).
 
 ```
+app/pages/index.vue             home: the pitch, Play, and this month's board
+app/pages/play.vue              the game page, deliberately bare
 app/components/WordpaceGame.vue  the game (state, board, keyboard, timer, UI)
 shared/wordle.ts                pure rules: evaluate, validate, timer formula
 shared/words/answer-words.ts    the answers, split into four CEFR bands
