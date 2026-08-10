@@ -6,8 +6,9 @@
 import { VALID_WORDS } from "#shared/words/valid-words";
 import {
   ANSWER_WORDS,
-  COMMON_WORDS,
-  UNCOMMON_WORDS,
+  A1_A2_WORDS,
+  B1_WORDS,
+  B2_WORDS,
 } from "#shared/words/answer-words";
 
 /** Numero di lettere di una parola (Wordle classico: 5). */
@@ -135,49 +136,64 @@ export function isValidWord(word: string): boolean {
   return VALID_WORD_SET.has(word.trim().toLowerCase());
 }
 
-// Da quale livello entrano in gioco le parole meno comuni. Fino al terzo si
-// pesca solo fra quelle di tutti i giorni; dal quarto si aggiungono le
-// `uncommon`, dal nono anche le `rare`.
+// Da quale livello entra in gioco ogni fascia di vocabolario. Fino al secondo
+// si pesca solo fra le parole dei primi due livelli di corso; dal terzo si
+// aggiungono quelle da studente intermedio, dal quinto le B2, dall'ottavo tutto
+// il resto.
 //
-// Soglie basse di proposito: la maggior parte delle partite finisce fra il
-// livello 3 e il 4 (vedi la taratura dei prezzi degli aiuti qui sopra), quindi
-// spostarle più in là renderebbe la difficoltà crescente invisibile a quasi
-// tutti, e l'unico effetto sarebbe un gioco più facile.
-const UNCOMMON_FROM_LEVEL = 4;
-const RARE_FROM_LEVEL = 9;
+// Le soglie sono basse perché la maggior parte delle partite finisce fra il
+// livello 3 e il 4 (vedi la taratura dei prezzi degli aiuti qui sopra):
+// spostandole più in là, la difficoltà crescente sarebbe invisibile a quasi
+// tutti e l'unico effetto sarebbe un gioco più facile.
+//
+// L'ottavo livello è il punto in cui il gioco smette di essere per tutti: da lì
+// quasi una parola su due è C1-C2. È voluto che sia lì — non al quarto, dove
+// scoraggerebbe chi sta imparando, e non al quindicesimo, dove non lo vedrebbe
+// nessuno.
+const B1_FROM_LEVEL = 3;
+const B2_FROM_LEVEL = 5;
+const C1_C2_FROM_LEVEL = 8;
 
 // I barattoli da cui pescare, uniti una volta sola all'avvio come VALID_WORD_SET
-// più sopra: fonderli dentro la funzione significherebbe ricostruire 1.762
-// elementi a ogni parola nuova, per poi buttarli un istante dopo.
+// più sopra: fonderli dentro la funzione significherebbe ricostruire fino a
+// 1.253 elementi a ogni parola nuova, per poi buttarli un istante dopo.
 //
-// Sono CUMULATIVI, non separati: al nono livello le parole comuni possono
-// ancora uscire, solo più di rado. Sostituire il barattolo invece di allargarlo
-// creerebbe un muro — le parole facili sparirebbero di colpo proprio dove il
-// timer si è già accorciato — e renderebbe irrecuperabile qualunque parola
-// etichettata male, visto che le etichette del dizionario sono generate e non
-// prese da un corpus reale.
-const EARLY_POOL = COMMON_WORDS;
-const MID_POOL = [...COMMON_WORDS, ...UNCOMMON_WORDS];
+// Ogni barattolo porta il nome della fascia che aggiunge e contiene anche tutte
+// quelle prima: B2_POOL è A1-A2 più B1 più B2. Sono CUMULATIVI, non separati —
+// all'ottavo livello una parola facile può ancora uscire, solo più di rado.
+// Sostituire il barattolo invece di allargarlo creerebbe un muro (le parole
+// facili sparirebbero di colpo proprio dove il timer si è già accorciato) e
+// renderebbe irraggiungibile qualunque parola graduata male.
+//
+// I quattro barattoli valgono 474, 807, 1.253 e 2.315 parole: gli allargamenti
+// stanno tutti fra ×1,6 e ×1,8, che è il motivo per cui le fasce sono quattro e
+// non tre. Accorpando B1 e B2 il primo gradino raddoppierebbe di colpo.
+const A1_A2_POOL = A1_A2_WORDS;
+const B1_POOL = [...A1_A2_WORDS, ...B1_WORDS];
+const B2_POOL = [...A1_A2_WORDS, ...B1_WORDS, ...B2_WORDS];
 
 /**
  * Le parole in gioco a un dato livello.
  *
- * L'ordine dei due controlli conta: partendo dalla soglia più bassa, un livello
- * alto soddisfarebbe già quella e si fermerebbe lì, e le parole rare non
- * uscirebbero mai. Si guarda quindi prima la soglia più alta.
+ * L'ordine dei controlli conta: partendo dalla soglia più bassa, un livello alto
+ * soddisfarebbe già quella e si fermerebbe lì, e le parole difficili non
+ * uscirebbero mai. Si guarda quindi dalla soglia più alta alla più bassa.
  *
- * Il terzo barattolo è ANSWER_WORDS così com'è, invece di rifondere le tre
+ * L'ultimo barattolo è ANSWER_WORDS così com'è, invece di rifondere le quattro
  * fasce: è già la loro unione, e ricostruirla qui vorrebbe dire tenere allineate
  * a mano due liste che devono essere identiche.
  */
 function poolForLevel(level: number): readonly string[] {
-  if (level >= RARE_FROM_LEVEL) {
+  if (level >= C1_C2_FROM_LEVEL) {
     return ANSWER_WORDS;
   }
-  if (level >= UNCOMMON_FROM_LEVEL) {
-    return MID_POOL;
+  if (level >= B2_FROM_LEVEL) {
+    return B2_POOL;
   }
-  return EARLY_POOL;
+  if (level >= B1_FROM_LEVEL) {
+    return B1_POOL;
+  }
+  return A1_A2_POOL;
 }
 
 /**

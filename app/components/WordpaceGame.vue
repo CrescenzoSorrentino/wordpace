@@ -39,7 +39,7 @@ import {
 // tradotto in JavaScript: serve a TypeScript per i controlli e non trascina
 // nel browser un solo byte del dizionario. Importare `getDefinition` come
 // facevamo prima ci riporterebbe dentro tutte le 2.315 voci.
-import type { WordDefinition } from "#shared/words/definitions";
+import type { WordEntry } from "#shared/definitions";
 
 // Le tre fasi del gioco: si sta giocando, si sta leggendo la spiegazione della
 // parola, oppure la partita è finita. Tutto il resto del codice si regola su
@@ -252,10 +252,11 @@ const board = computed(() => {
  * salta le righe vuote, quindi nel caso pessimo si vede una finestra sobria
  * invece di un errore.
  */
-const EMPTY_DEFINITION: WordDefinition = {
+const EMPTY_DEFINITION: WordEntry = {
   pos: "",
   ipa: "",
   level: "",
+  cefr: "",
   en: "",
   example: "",
 };
@@ -270,7 +271,7 @@ const EMPTY_DEFINITION: WordDefinition = {
  *
  * La regola generale: computed per ciò che si calcola, ref per ciò che arriva.
  */
-const currentDefinition = ref<WordDefinition>(EMPTY_DEFINITION);
+const currentDefinition = ref<WordEntry>(EMPTY_DEFINITION);
 
 /**
  * Quanto resta del tempo di lettura, in percentuale, per la barra che si
@@ -730,7 +731,7 @@ function submitGuess() {
 async function fetchDefinition(word: string) {
   currentDefinition.value = EMPTY_DEFINITION;
   try {
-    const definition = await $fetch<WordDefinition>("/api/definition", {
+    const definition = await $fetch<WordEntry>("/api/definition", {
       query: { word },
     });
     // La parola potrebbe essere già cambiata (partita nuova, livello saltato):
@@ -1130,12 +1131,16 @@ onBeforeUnmount(() => {
           <span v-if="currentDefinition.ipa" class="wordle__definition-ipa">
             {{ currentDefinition.ipa }}
           </span>
+          <!-- Il livello di corso a cui si impara la parola, non la sua
+               frequenza: "B2" chi studia inglese lo può confrontare col proprio
+               livello, "uncommon" no. La classe si ricava dalla prima lettera
+               (A, B o C), così bastano tre colori per sei livelli. -->
           <span
-            v-if="currentDefinition.level"
+            v-if="currentDefinition.cefr"
             class="wordle__definition-level"
-            :class="`wordle__definition-level--${currentDefinition.level}`"
+            :class="`wordle__definition-level--${currentDefinition.cefr[0]!.toLowerCase()}`"
           >
-            {{ currentDefinition.level }}
+            {{ currentDefinition.cefr }}
           </span>
         </p>
 
@@ -1879,8 +1884,13 @@ onBeforeUnmount(() => {
   font-size: 0.82rem;
 }
 
-/* Frequenza: la stessa pastiglia colorata che il gioco usa per le lettere,
-   così l'informazione "quanto è comune" parla il linguaggio del gioco. */
+/* Livello CEFR: la stessa pastiglia colorata che il gioco usa per le lettere,
+   così l'informazione parla il linguaggio del gioco.
+
+   Tre colori per sei livelli, presi dalla prima lettera: A verde (la sai), B
+   giallo (ci stai arrivando), C grigio (è una parola da collezione). Sei
+   sfumature distinte sarebbero sei cose da imparare per il giocatore, e la
+   sigla accanto dice già tutto quello che serve. */
 .wordle__definition-level {
   padding: 0.15rem 0.5rem;
   border-radius: 3px;
@@ -1892,11 +1902,11 @@ onBeforeUnmount(() => {
   background: var(--wg-absent);
 }
 
-.wordle__definition-level--common {
+.wordle__definition-level--a {
   background: var(--wg-correct);
 }
 
-.wordle__definition-level--uncommon {
+.wordle__definition-level--b {
   background: var(--wg-present);
   color: #ffffff;
 }

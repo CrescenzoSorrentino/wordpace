@@ -15,10 +15,13 @@ endorsed by, The New York Times.
   **🟩 green** (right spot), **🟨 yellow** (in the word, wrong spot) or
   **⬜ grey** (not in the word).
 - Solve a word to **advance a level**, bank points, and get a fresh word.
-- **Words get rarer as you climb.** The first three levels only draw from
-  everyday words; from level 4 the less common ones join in, and from level 9
-  the rare ones too. The pools add up rather than replace each other, so a
-  familiar word can still turn up at level 20 — just less often.
+- **Words get harder as you climb, on the scale you're taught on.** Every
+  answer is graded by the CEFR level at which a learner is expected to know it,
+  and the levels draw from a widening pool: **A1–A2** to start, **+B1** from
+  level 3, **+B2** from level 5, **+C1–C2** from level 8. The pools add up
+  rather than replace each other, so a familiar word can still turn up at level
+  20 — just less often. Which means the level you reach is a rough read on your
+  own English: a B1 learner tends to stall around 5–8.
 - Every level has a **countdown timer**. It starts at 5 minutes and each level
   hands out 8% less than the one before, fading toward nothing — so the late
   game is spent on savings rather than on what the level gives you.
@@ -28,7 +31,7 @@ endorsed by, The New York Times.
   per new yellow — but only the *first* time you discover each one, so you can't
   farm time by re-typing the same letters. A guess that reveals nothing costs 5s.
 - Whatever the outcome, the word is then **explained**: part of speech, IPA
-  pronunciation with a button that speaks it aloud, a frequency label, a
+  pronunciation with a button that speaks it aloud, its CEFR level, a
   definition and an example sentence. The clock and the keyboard are frozen
   while you read; a **Continue** button skips the remaining seconds.
 - At the end of a run, every word you met comes back in one list with its
@@ -82,14 +85,17 @@ levels are worth more.
   and no network call. A named preference list picks a real English voice, since
   macOS ships novelty voices (Zarvox, Boing…) that also declare themselves
   `en-US`.
-- The dictionary (~440 KB) is **never sent to the browser**. It is imported only
-  by a server route, and the game fetches one entry at a time — at the *start*
-  of each level, so the request has finished long before the entry is shown.
+- The dictionary (~440 KB) and the CEFR grades are **never sent to the browser**.
+  Both are imported only by a server route, and the game fetches one entry at a
+  time — at the *start* of each level, so the request has finished long before
+  the entry is shown. The client gets only the word lists it needs to pick an
+  answer (~148 KB).
 
 ```
 app/components/WordpaceGame.vue  the game (state, board, keyboard, timer, UI)
 shared/wordle.ts                pure rules: evaluate, validate, timer formula
-shared/words/answer-words.ts    the answers, split into three frequency tiers
+shared/words/answer-words.ts    the answers, split into four CEFR bands
+shared/words/cefr-levels.json   the CEFR level of every answer (server-side)
 shared/words/valid-words.ts     every word accepted as a guess
 shared/definitions.ts           dictionary lookup, with a never-throwing fallback
 shared/words/definitions.ts     2,315 generated entries (do not edit by hand)
@@ -131,13 +137,14 @@ Environment variables (see `.env.example`):
 ## The dictionary
 
 `shared/words/definitions.ts` holds one entry per answer word — part of speech,
-IPA, frequency label, definition and example sentence. It is generated, not
+IPA, a native-frequency label, definition and example sentence. It is generated, not
 hand-written, so that all 2,315 entries come out of a single prompt and stay
 consistent with each other.
 
 ```bash
 node --env-file=.env scripts/generate-definitions.mjs   # generate what's missing
 node scripts/build-definitions.mjs                      # assemble + validate
+node --env-file=.env scripts/generate-cefr.mjs          # grade answers A1–C2
 node scripts/build-answer-tiers.mjs                     # re-split answers by tier
 ```
 
@@ -153,11 +160,18 @@ node scripts/build-answer-tiers.mjs                     # re-split answers by ti
   says so.
 - Intermediate JSON blocks live in `scripts/.cache/` and are git-ignored; they
   can be regenerated at any time.
-- **Tiering** reads the `level` field back out of the dictionary and rewrites
-  `answer-words.ts` grouped by it. It exists because the dictionary is 449 KB
+- **CEFR grading** asks for the level at which a learner is expected to know
+  each answer (A1–C2) and stores it in `shared/words/cefr-levels.json`. It is a
+  separate pass from generation because it answers a different question than
+  the dictionary's own `level` field: `level` says how common a word is for a
+  *native speaker*, which put `lease`, `merge` and `grasp` among the "common"
+  ones and made the opening levels of the game demand solid B1. It is
+  resumable, and takes a word count as its first argument for a trial run.
+- **Tiering** turns those grades into the four pools — A1+A2, B1, B2, C1+C2 —
+  and rewrites `answer-words.ts`. It exists because the dictionary is 449 KB
   and stays on the server, while the word has to be picked in the browser, so
-  the one bit the client needs — which tier a word belongs to — is baked into a
-  20 KB file instead. Run it whenever the dictionary changes.
+  the one bit the client needs is baked into a 20 KB file instead. It refuses
+  to write unless every answer has a grade, rather than mixing the two scales.
 
 ## Deployment
 
