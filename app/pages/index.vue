@@ -25,50 +25,53 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
   <main class="page">
     <header class="hero">
       <!--
-        Sfondo della testatina: le celle del gioco stesso, sfumate.
-        Non è un'illustrazione decorativa presa altrove — è il linguaggio
-        visivo della griglia, così chi arriva capisce di che gioco si tratta
-        prima ancora di leggere il sottotitolo.
+        Sfondo della testatina: le celle vuote del gioco, ripetute.
 
-        È disegnato qui dentro invece di essere un file .svg separato: nessuna
-        richiesta di rete in più, i colori arrivano dalle stesse variabili del
-        gioco, e resta nitido su qualsiasi schermo.
+        La versione precedente aveva diciotto riquadri a coordinate fisse dentro
+        un viewBox 600×200 con `slice`: le celle venivano quindi INGRANDITE o
+        ritagliate a seconda della larghezza dello schermo — riquadroni da cento
+        pixel su un monitor grande, celle tagliate via su uno stretto. Le
+        posizioni funzionavano per una proporzione sola.
 
-        aria-hidden perché è puramente decorativo: per un lettore di schermo
-        annunciare venti rettangoli sarebbe solo rumore.
+        Ora è un <pattern>: il disegno non si ridimensiona, si RIPETE. Le celle
+        restano di 52 pixel su qualsiasi schermo, cambia solo quante ce ne
+        stanno. Il riquadro del motivo è di tre righe per cinque colonne — come
+        una griglia del gioco — con tre celle colorate in posizioni diverse:
+        abbastanza grande perché la ripetizione non si legga come una piastrella.
+
+        aria-hidden perché è decorativo: per un lettore di schermo sarebbe solo
+        rumore.
       -->
-      <svg
-        class="hero__pattern"
-        viewBox="0 0 600 200"
-        preserveAspectRatio="xMidYMid slice"
-        aria-hidden="true"
-        focusable="false"
-      >
-        <g class="hero__tiles">
-          <!-- Riga alta -->
-          <rect x="18" y="14" width="44" height="44" rx="3" />
-          <rect x="70" y="14" width="44" height="44" rx="3" class="is-correct" />
-          <rect x="122" y="14" width="44" height="44" rx="3" />
-          <rect x="434" y="14" width="44" height="44" rx="3" />
-          <rect x="486" y="14" width="44" height="44" rx="3" class="is-present" />
-          <rect x="538" y="14" width="44" height="44" rx="3" />
+      <svg class="hero__pattern" aria-hidden="true" focusable="false">
+        <defs>
+          <pattern
+            id="hero-cells"
+            width="260"
+            height="156"
+            patternUnits="userSpaceOnUse"
+          >
+            <g class="hero__tiles">
+              <rect x="4" y="4" width="44" height="44" rx="3" />
+              <rect x="56" y="4" width="44" height="44" rx="3" />
+              <rect x="108" y="4" width="44" height="44" rx="3" class="is-correct" />
+              <rect x="160" y="4" width="44" height="44" rx="3" />
+              <rect x="212" y="4" width="44" height="44" rx="3" />
 
-          <!-- Riga centrale, arretrata per lasciare respiro al titolo -->
-          <rect x="-8" y="66" width="44" height="44" rx="3" class="is-absent" />
-          <rect x="44" y="66" width="44" height="44" rx="3" />
-          <rect x="512" y="66" width="44" height="44" rx="3" />
-          <rect x="564" y="66" width="44" height="44" rx="3" class="is-correct" />
+              <rect x="4" y="56" width="44" height="44" rx="3" />
+              <rect x="56" y="56" width="44" height="44" rx="3" class="is-present" />
+              <rect x="108" y="56" width="44" height="44" rx="3" />
+              <rect x="160" y="56" width="44" height="44" rx="3" />
+              <rect x="212" y="56" width="44" height="44" rx="3" class="is-absent" />
 
-          <!-- Riga bassa -->
-          <rect x="18" y="118" width="44" height="44" rx="3" />
-          <rect x="70" y="118" width="44" height="44" rx="3" />
-          <rect x="122" y="118" width="44" height="44" rx="3" class="is-present" />
-          <rect x="174" y="118" width="44" height="44" rx="3" />
-          <rect x="382" y="118" width="44" height="44" rx="3" />
-          <rect x="434" y="118" width="44" height="44" rx="3" class="is-correct" />
-          <rect x="486" y="118" width="44" height="44" rx="3" />
-          <rect x="538" y="118" width="44" height="44" rx="3" />
-        </g>
+              <rect x="4" y="108" width="44" height="44" rx="3" />
+              <rect x="56" y="108" width="44" height="44" rx="3" />
+              <rect x="108" y="108" width="44" height="44" rx="3" />
+              <rect x="160" y="108" width="44" height="44" rx="3" class="is-correct" />
+              <rect x="212" y="108" width="44" height="44" rx="3" />
+            </g>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#hero-cells)" />
       </svg>
 
       <div class="hero__content">
@@ -77,14 +80,13 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
       </div>
     </header>
 
-    <!-- Su schermo largo il gancio sta a sinistra e la dimostrazione a destra:
-         impilati diventerebbero due blocchi stretti in mezzo a metà schermo
-         vuoto. Su telefono tornano una colonna sola, nell'ordine in cui sono
-         scritti — prima si capisce cos'è, poi lo si vede. -->
     <div class="top">
-      <!-- Il gancio e il tasto stanno insieme e in alto: su un telefono devono
-           entrambi entrare nella prima schermata, senza scorrere. Chi riceve il
-           link legge una riga e decide; chi torna a giocare clicca e basta. -->
+      <!-- Il gancio e il tasto stanno subito sotto la testatina: su un telefono
+           devono entrare nella prima schermata, senza scorrere. Chi riceve il
+           link legge una riga e decide; chi torna a giocare clicca e basta.
+
+           Sono stati provati DENTRO la fascia della testatina, per giustificarne
+           la larghezza piena: da guardare era peggio, e sono tornati qui. -->
       <section class="intro">
         <p class="intro__pitch">
           A word game for people learning English. Guess five-letter words
@@ -98,21 +100,18 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
         <p class="intro__reassure">No sign-up · about 3 minutes a run</p>
       </section>
 
-      <!-- Una partita finta, ferma. Vale più delle tre caselle qui sotto messe
-           insieme: chi arriva vede in mezzo secondo che è un gioco di parole E
-           che ti spiega la parola, senza leggere una riga.
+      <!-- Una partita finta, ferma. Vale più di qualunque descrizione: chi
+           arriva vede in mezzo secondo che è un gioco di parole E che ti spiega
+           la parola, senza leggere una riga.
 
            Le tre righe sono una partita plausibile verso ACORN, non lettere a
            caso: SLATE trova la A fuori posto, ACRID inchioda le prime due e
-           sposta la R, ACORN chiude.
+           sposta la R, ACORN chiude. Parola, pronuncia e livello sono quelli veri
+           del dizionario: chi clicca deve ritrovare le stesse cose.
 
-           La parola, la pronuncia e il livello sono quelli veri del dizionario,
-           non inventati: chi arriva qui e poi gioca deve ritrovare le stesse
-           cose, non una versione pubblicitaria.
-
-           La griglia è aria-hidden perché quindici lettere sciolte, lette una
-           per una da un lettore di schermo, sarebbero rumore: il senso lo porta
-           la didascalia qui sotto. -->
+           La griglia è aria-hidden perché quindici lettere sciolte, lette una per
+           una da un lettore di schermo, sarebbero rumore: il senso lo porta la
+           didascalia. -->
       <figure class="demo">
         <div class="demo__grid" aria-hidden="true">
           <span class="demo__cell demo__cell--absent">S</span>
@@ -241,7 +240,6 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
   margin: 0 -1rem;
   padding: clamp(1.75rem, 7vw, 3rem) 1rem clamp(1.25rem, 4vw, 2rem);
   overflow: hidden; /* le celle che escono dai bordi vengono tagliate */
-  border-bottom: 1px solid var(--wg-border);
 }
 
 .hero__pattern {
@@ -250,17 +248,19 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
   width: 100%;
   height: 100%;
   /* Sfuma verso il centro, così il titolo resta su fondo pulito e leggibile
-     invece di sovrapporsi ai riquadri. Il prefisso -webkit- serve alle versioni
-     di Safari precedenti alla 15.4. */
+     invece di sovrapporsi ai riquadri. Con un motivo che si ripete la sfumatura
+     conta più di prima: senza, la fascia sarebbe una scacchiera uniforme da
+     bordo a bordo e il titolo ci si perderebbe dentro.
+     Il prefisso -webkit- serve alle versioni di Safari precedenti alla 15.4. */
   -webkit-mask-image: radial-gradient(
-    ellipse 55% 95% at center,
-    transparent 32%,
-    #000 78%
+    ellipse 60% 100% at center,
+    transparent 30%,
+    #000 85%
   );
   mask-image: radial-gradient(
-    ellipse 55% 95% at center,
-    transparent 32%,
-    #000 78%
+    ellipse 60% 100% at center,
+    transparent 30%,
+    #000 85%
   );
 }
 
@@ -272,22 +272,24 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
 }
 
 /* I tre colori del gioco, molto smorzati: devono suggerire, non gridare. */
+/* Più smorzati di prima: con il motivo ripetuto le celle colorate sono molte di
+   più, e alla vecchia intensità la fascia diventerebbe un tappeto a pois. */
 .hero__tiles .is-correct {
   fill: var(--wg-correct);
   stroke: var(--wg-correct);
-  opacity: 0.55;
+  opacity: 0.32;
 }
 
 .hero__tiles .is-present {
   fill: var(--wg-present);
   stroke: var(--wg-present);
-  opacity: 0.5;
+  opacity: 0.3;
 }
 
 .hero__tiles .is-absent {
   fill: var(--wg-absent);
   stroke: var(--wg-absent);
-  opacity: 0.3;
+  opacity: 0.18;
 }
 
 .hero__content {
@@ -323,12 +325,10 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
   color: var(--wg-dim);
 }
 
-/* === Gancio e tasto === */
-
 /* Una colonna sola a ogni larghezza di schermo: la stessa impaginazione del
-   telefono, centrata. La versione a due colonne per il desktop è stata provata
-   e scartata — su schermo largo il testo a sinistra e la griglia a destra
-   lasciavano il centro vuoto e la pagina sembrava sbilanciata.
+   telefono, centrata. Sono state provate e scartate due alternative — il
+   gancio e la dimostrazione affiancati su schermo largo, e il gancio col tasto
+   dentro la fascia della testatina: entrambe peggio da guardare.
 
    Tutte le sezioni condividono la stessa larghezza (--col): la ragione per cui
    la pagina sembrava un foglio era che ognuna ne aveva una diversa. */
