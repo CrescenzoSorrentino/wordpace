@@ -207,6 +207,10 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
 
   /* La larghezza della colonna, una sola per tutta la pagina. */
   --col: 26rem;
+  /* Lo stesso raggio degli angoli del gioco: qui era scritto a mano in cinque
+     punti, con tre valori diversi (3, 4 e 6px). Bastava guardare due riquadri
+     vicini per accorgersene. */
+  --radius: 4px;
 
   display: flex;
   flex-direction: column;
@@ -364,12 +368,14 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
   display: inline-block;
   min-width: 12rem;
   padding: 0.95rem 2.5rem;
-  border-radius: 4px;
+  border-radius: var(--radius);
   background: var(--wg-correct);
   color: #ffffff;
   font-size: 1rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  /* Come i tasti del gioco. Più largo era arbitrario: il tasto è già grande di
+     suo, la spaziatura in più lo faceva solo sembrare di un'altra famiglia. */
+  letter-spacing: 0.09em;
   text-transform: uppercase;
   text-decoration: none;
   transition: filter 0.12s ease;
@@ -415,7 +421,7 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
   align-items: center;
   justify-content: center;
   aspect-ratio: 1;
-  border-radius: 4px;
+  border-radius: var(--radius);
   color: #ffffff;
   font-size: clamp(1.1rem, 5vw, 1.6rem);
   font-weight: 700;
@@ -439,7 +445,7 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
   width: 100%;
   padding: 0.7rem 0.9rem;
   box-sizing: border-box;
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--wg-surface);
   text-align: left;
 }
@@ -462,7 +468,11 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
 }
 
 /* La stessa pastiglia che il gioco mostra a fine parola, stesso colore per la
-   fascia B: chi arriva qui e poi gioca ritrova un segno che ha già visto. */
+   fascia B: chi arriva qui e poi gioca ritrova un segno che ha già visto.
+
+   3px e non --radius: il gioco usa due raggi di proposito, 4px per riquadri e
+   celle e 3px per le pastiglie piccole. Su una pastiglia alta un centimetro il
+   raggio da riquadro la fa sembrare una pillola. */
 .demo__level {
   margin-left: auto;
   padding: 0.15rem 0.5rem;
@@ -491,7 +501,7 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
    leggevano come un unico blocco di quattro riquadri. */
 .section-title {
   margin: 0 0 0.7rem;
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -512,7 +522,7 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
 
 .fact {
   padding: 1.1rem 1.2rem;
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--wg-surface);
   text-align: left;
 }
@@ -553,23 +563,27 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
   align-items: center;
   gap: 0.7rem;
   padding: 0.45rem 0.6rem;
-  border-radius: 4px;
+  border-radius: var(--radius);
   background: var(--wg-surface);
   font-size: 0.95rem;
 }
 
+/* Identica a quella della classifica di fine partita: stessa forma, stessa
+   misura, stesso corpo. Erano due pastiglie diverse — qui tonda e piccola, là
+   quadrata e più grande — per la stessa identica informazione. */
 .board__rank {
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 1.35rem;
-  height: 1.35rem;
-  border-radius: 999px;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 3px;
   background: var(--wg-absent);
   color: #ffffff;
-  font-size: 0.68rem;
+  font-size: 0.78rem;
   font-weight: 700;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 /* Oro, argento e bronzo per i primi tre, come nel gioco. */
@@ -589,11 +603,12 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .board__score {
   font-variant-numeric: lining-nums tabular-nums;
+  font-weight: 700;
 }
 
 .board__note {
