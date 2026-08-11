@@ -6,6 +6,10 @@
  * lì si corre contro il tempo.
  */
 import type { LeaderboardEntry } from "#shared/leaderboard";
+import { C1_C2_WORDS } from "#shared/words/answer-words";
+// Le FUNZIONI di app/utils/ sono auto-importate, i TIPI no: vanno chiesti a
+// mano. È la sola cosa che l'auto-import non copre.
+import type { Stats } from "~/utils/stats";
 
 /**
  * La classifica del mese, chiesta al server DURANTE la resa della pagina e non
@@ -19,6 +23,36 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
   "/api/leaderboard",
   { default: () => [] },
 );
+
+/**
+ * I record personali, che vivono nel browser di chi gioca.
+ *
+ * Restano `null` finché la pagina non è nel browser: localStorage non esiste
+ * sul server, e leggerlo durante la resa della pagina la farebbe fallire. Per
+ * questo si carica in onMounted e non accanto alla classifica qui sopra.
+ *
+ * Conseguenza visibile: il riquadro compare un istante dopo il resto. È
+ * inevitabile — quel dato il server non ce l'ha e non può averlo.
+ */
+const stats = ref<Stats | null>(null);
+
+onMounted(() => {
+  stats.value = loadStats();
+});
+
+/**
+ * Quante delle parole incontrate stanno sopra il B2.
+ *
+ * Il livello CEFR preciso vive solo sul server, ma la FASCIA no: il browser ha
+ * già i quattro barattoli per scegliere le parole, quindi basta guardare se la
+ * parola sta in quello delle difficili. Nessun dato in più da salvare o da
+ * scaricare.
+ */
+const hardWords = computed(() => {
+  if (!stats.value) return 0;
+  const hard = new Set(C1_C2_WORDS);
+  return stats.value.words.filter((word) => hard.has(word)).length;
+});
 </script>
 
 <template>
@@ -170,6 +204,34 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
             Meaning, pronunciation and an example — the ones you missed included.
           </p>
         </article>
+      </div>
+    </section>
+
+    <!-- I record personali, sopra la classifica: per chi torna "il tuo" viene
+         prima di "quello degli altri", e a chi arriva la prima volta il blocco
+         non compare affatto — come già fa la classifica quando è vuota.
+
+         Il conteggio delle parole è la misura più sincera del gioco: la
+         classifica dice se sei più bravo di altri, questo dice cosa hai
+         imparato tu. -->
+    <section v-if="stats && stats.runs > 0" class="you" aria-labelledby="you-title">
+      <h2 id="you-title" class="section-title">Your best</h2>
+
+      <div class="you__grid">
+        <p class="you__stat">
+          <span class="you__value">{{ stats.bestLevel }}</span>
+          <span class="you__label">level reached</span>
+        </p>
+        <p class="you__stat">
+          <span class="you__value">{{ stats.bestScore }}</span>
+          <span class="you__label">points</span>
+        </p>
+        <p class="you__stat">
+          <span class="you__value">{{ stats.words.length }}</span>
+          <span class="you__label">
+            words met<template v-if="hardWords">, {{ hardWords }} above B2</template>
+          </span>
+        </p>
       </div>
     </section>
 
@@ -539,6 +601,46 @@ const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
   margin: 0;
   font-size: 0.9rem;
   line-height: 1.5;
+  color: var(--wg-dim);
+}
+
+/* === I tuoi record === */
+
+/* Tre numeri affiancati e non impilati: sono corti, e in colonna occuperebbero
+   tre righe per dire tre cifre. Su schermo stretto restano tre perché il
+   contenitore è già largo solo 26rem. */
+.you {
+  width: 100%;
+  max-width: var(--col);
+}
+
+.you__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+}
+
+.you__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0.7rem 0.4rem;
+  border-radius: var(--radius);
+  background: var(--wg-surface);
+  text-align: center;
+}
+
+.you__value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.you__label {
+  font-size: 0.68rem;
+  line-height: 1.3;
   color: var(--wg-dim);
 }
 

@@ -40,6 +40,7 @@ import {
 // nel browser un solo byte del dizionario. Importare `getDefinition` come
 // facevamo prima ci riporterebbe dentro tutte le 2.315 voci.
 import type { WordEntry } from "#shared/definitions";
+import { saveRun } from "~/utils/stats";
 
 // Le tre fasi del gioco: si sta giocando, si sta leggendo la spiegazione della
 // parola, oppure la partita è finita. Tutto il resto del codice si regola su
@@ -589,10 +590,26 @@ function speakWord() {
   speechSynthesis.speak(utterance);
 }
 
-/** Chiude la partita: ferma l'orologio, mostra Game Over, controlla la classifica. */
+/**
+ * Chiude la partita: ferma l'orologio, mostra Game Over, aggiorna i record
+ * personali e controlla la classifica.
+ *
+ * È l'unico imbuto attraverso cui una partita finisce — ci passano sia il tempo
+ * scaduto sia i sei tentativi esauriti — quindi una chiamata sola qui copre
+ * tutti i modi di perdere.
+ *
+ * A saveRun servono le sole parole, mentre wordsSeen contiene anche le
+ * definizioni: `.map` costruisce un elenco nuovo tenendo di ogni voce il solo
+ * campo che serve.
+ */
 function endRun() {
   stopTimer();
   status.value = "lost";
+  saveRun(
+    score.value,
+    level.value,
+    wordsSeen.value.map((seen) => seen.word),
+  );
   finishRun();
 }
 
