@@ -41,6 +41,13 @@ endorsed by, The New York Times.
   makes the top 10 **of the current month**, you're prompted for a nickname and
   added to the leaderboard. The board starts fresh on the first of every month,
   so a good run is never locked out by scores set long ago.
+- Either way the run is **yours to keep**: your best level, your best score and
+  how many distinct words you have met are stored in the browser and shown on
+  the home page — the ten names on the board are not the only measure of
+  progress, and for a learner the word count is the more honest one.
+- A finished run can be **shared** as four squares, one per CEFR band: green for
+  the bands you cleared, yellow for the one you reached. On a phone it opens the
+  system share sheet, on a desktop it goes to the clipboard.
 
 ## When you're stuck
 
@@ -83,6 +90,10 @@ levels are worth more.
   its own and old months expire instead of piling up.
 - Pure game rules live in `shared/` (imported via the `#shared` alias) and are
   reused on the client and re-validated on the server.
+- Personal records live in `localStorage`, not on the server: with no accounts
+  there is no "who", so the server would need an identifier kept in the browser
+  anyway. Nothing about a player is stored server-side except a nickname they
+  typed themselves to enter the board.
 - Pronunciation uses the browser's built-in `speechSynthesis` — no audio files
   and no network call. A named preference list picks a real English voice, since
   macOS ships novelty voices (Zarvox, Boing…) that also declare themselves
@@ -94,8 +105,10 @@ levels are worth more.
   answer (~148 KB).
 
 ```
-app/pages/index.vue             home: the pitch, Play, and this month's board
+app/pages/index.vue             home: the pitch, Play, your records, the board
 app/pages/play.vue              the game page, deliberately bare
+app/utils/stats.ts              personal records, kept in localStorage
+app/utils/share.ts              the text of a shared run
 app/components/WordpaceGame.vue  the game (state, board, keyboard, timer, UI)
 shared/wordle.ts                pure rules: evaluate, validate, timer formula
 shared/words/answer-words.ts    the answers, split into four CEFR bands
@@ -137,6 +150,7 @@ Environment variables (see `.env.example`):
 | `npm run dev` | Start the dev server |
 | `npm run build` | Production build |
 | `npm run preview` | Preview the production build |
+| `npm run typecheck` | Type-check app, server and shared code |
 
 ## The dictionary
 
