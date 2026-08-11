@@ -25,6 +25,7 @@ import {
   maskWordInExample,
   MAX_SKIPS,
   costForSkip,
+  bandForLevel,
   type LetterState,
   type HintSize,
 } from "#shared/wordle";
@@ -122,6 +123,15 @@ const resultTab = ref<"scores" | "words">("scores");
  * peggior esito possibile per un errore è che nessuno se ne accorga.
  */
 const submitError = ref("");
+
+/**
+ * Esito dell'ultima condivisione, per dare un riscontro sul pulsante.
+ *
+ * Serve perché sia copiare negli appunti sia aprire il pannello di condivisione
+ * del telefono non lasciano NESSUNA traccia visibile: senza una parola che
+ * cambia, chi preme non sa se ha funzionato e preme di nuovo.
+ */
+const shareState = ref<"idle" | "done" | "failed">("idle");
 
 let messageTimer: ReturnType<typeof setTimeout> | undefined;
 let countdownTimer: ReturnType<typeof setInterval> | undefined;
@@ -476,6 +486,53 @@ function skipWord() {
   score.value -= skipCost.value;
   skipsUsed.value++;
   startExplanation("same-level");
+}
+
+/**
+ * Mette il risultato della partita a disposizione del giocatore, per incollarlo
+ * dove vuole.
+ *
+ * Due strade, e si sceglie in base a cosa il dispositivo sa fare. Sul telefono
+ * `navigator.share` apre il pannello di sistema — WhatsApp, messaggi, quello che
+ * c'è — ed è di gran lunga la strada migliore: un tocco e il messaggio è
+ * partito. Sul computer quel pannello quasi mai esiste, e si ripiega sul
+ * copiare negli appunti.
+ *
+ * Il ripiego non è un dettaglio: `navigator.share` esiste solo su una parte dei
+ * browser, e `navigator.clipboard` richiede una connessione sicura (https o
+ * localhost). Fuori da quei casi non resta niente da fare se non dirlo.
+ *
+ * L'annullamento non è un errore: se il giocatore apre il pannello di
+ * condivisione e poi cambia idea, il browser segnala comunque un rifiuto. Per
+ * questo si distingue `AbortError`, che significa "ci ho ripensato" e non
+ * "non ha funzionato".
+ */
+async function shareResult() {
+  try {
+    if (navigator.share) {
+      // Il pannello di sistema ha un campo suo per il collegamento, e chi
+      // riceve lo tratta meglio: alcune applicazioni ne mostrano l'anteprima.
+      // Per questo il testo qui NON lo contiene, o comparirebbe due volte.
+      await navigator.share({
+        text: shareBody(level.value, score.value),
+        url: SHARE_URL,
+      });
+    } else {
+      // Negli appunti finisce tutto insieme: lì un campo a parte non esiste.
+      await navigator.clipboard.writeText(shareText(level.value, score.value));
+    }
+    shareState.value = "done";
+  } catch (e) {
+    if ((e as Error)?.name === "AbortError") return; // ha chiuso il pannello
+    console.error("Could not share:", e);
+    shareState.value = "failed";
+  }
+
+  // L'esito torna neutro da solo: un "Copied!" che resta lì per sempre diventa
+  // l'etichetta del pulsante e smette di essere un riscontro.
+  setTimeout(() => {
+    shareState.value = "idle";
+  }, 2500);
 }
 
 /** Mostra un messaggio breve che si cancella da solo dopo un attimo. */
@@ -1325,6 +1382,27 @@ onBeforeUnmount(() => {
 
         <button class="wordle__again" type="button" @click="newRun">
           Play again
+        </button>
+
+        <!-- Secondario di proposito, sotto e col solo contorno: dopo una
+             partita la cosa che il giocatore vuole per prima è rigiocare, e
+             questo non deve competere col tasto verde.
+
+             L'etichetta cambia al posto di mostrare un messaggio a parte: né
+             gli appunti né il pannello di condivisione lasciano una traccia
+             visibile, e la conferma deve comparire dove è appena avvenuto il
+             clic, non altrove nella finestra. -->
+        <button
+          class="wordle__share"
+          type="button"
+          :disabled="shareState !== 'idle'"
+          @click="shareResult"
+        >
+          <template v-if="shareState === 'done'">Copied!</template>
+          <template v-else-if="shareState === 'failed'">
+            Couldn't copy
+          </template>
+          <template v-else>Share result</template>
         </button>
       </div>
     </div>
@@ -2194,6 +2272,50 @@ onBeforeUnmount(() => {
 }
 .wordle__scores-row:nth-child(3) .wordle__scores-rank {
   background: #a9743f;
+}
+
+/* Il pulsante di condivisione: solo contorno, come lo skip. È la stessa
+   distinzione di lì — pieno per l'azione principale, contorno per quella
+   secondaria — e qui la principale è rigiocare.
+
+   Lo sfondo trasparente e non var(--wg-surface): la finestra è bianca e il
+   fondino chiaro lo renderebbe indistinguibile dai riquadri delle liste. */
+.wordle__share {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: -0.35rem;
+  padding: 0.6rem 1.4rem;
+  border: 1px solid var(--wg-border-filled);
+  border-radius: var(--wg-radius);
+  background: transparent;
+  color: var(--wg-text);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.wordle__share:hover:not(:disabled) {
+  background: var(--wg-surface);
+  border-color: var(--wg-text);
+}
+
+.wordle__share:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* Durante i due secondi e mezzo del riscontro il pulsante resta spento: non
+   perché premerlo di nuovo faccia danni, ma perché un pulsante che dice
+   "Copied!" ed è ancora premibile invita a premerlo e a chiedersi cosa fa. */
+.wordle__share:disabled {
+  border-color: var(--wg-border);
+  color: var(--wg-dim);
+  cursor: default;
 }
 
 /* === Ripasso delle parole della partita === */

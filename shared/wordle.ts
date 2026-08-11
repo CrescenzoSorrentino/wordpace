@@ -196,6 +196,17 @@ function poolForLevel(level: number): readonly string[] {
   return A1_A2_POOL;
 }
 
+
+export const BANDS = ["A1-A2", "B1", "B2", "C1-C2"] as const;
+export type Band = (typeof BANDS)[number];
+
+export function bandForLevel(level: number): Band {
+  if (level >= C1_C2_FROM_LEVEL) return "C1-C2";
+  if (level >= B2_FROM_LEVEL) return "B2";
+  if (level >= B1_FROM_LEVEL) return "B1";
+  return "A1-A2";
+}
+
 /**
  * Sceglie una soluzione a caso fra quelle in gioco al livello indicato.
  * Math.random va benissimo qui: la scelta deve solo essere imprevedibile per il

@@ -40,7 +40,7 @@ export function saveRun(score: number, level: number, words: string[]) {
       version: VERSION,
       bestScore: Math.max(stats.bestScore, score),
       bestLevel: Math.max(stats.bestLevel, level),
-      runs: stats.runs +1,
+      runs: stats.runs + 1,
       words: [...new Set([...stats.words, ...words])],
     }),
   );
