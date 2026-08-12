@@ -6,7 +6,6 @@
  * lì si corre contro il tempo.
  */
 import type { LeaderboardEntry } from "#shared/leaderboard";
-import { C1_C2_WORDS } from "#shared/words/answer-words";
 // Le FUNZIONI di app/utils/ sono auto-importate, i TIPI no: vanno chiesti a
 // mano. È la sola cosa che l'auto-import non copre.
 import type { Stats } from "~/utils/stats";
@@ -40,19 +39,6 @@ onMounted(() => {
   stats.value = loadStats();
 });
 
-/**
- * Quante delle parole incontrate stanno sopra il B2.
- *
- * Il livello CEFR preciso vive solo sul server, ma la FASCIA no: il browser ha
- * già i quattro barattoli per scegliere le parole, quindi basta guardare se la
- * parola sta in quello delle difficili. Nessun dato in più da salvare o da
- * scaricare.
- */
-const hardWords = computed(() => {
-  if (!stats.value) return 0;
-  const hard = new Set(C1_C2_WORDS);
-  return stats.value.words.filter((word) => hard.has(word)).length;
-});
 </script>
 
 <template>
@@ -229,7 +215,7 @@ const hardWords = computed(() => {
         <p class="you__stat">
           <span class="you__value">{{ stats.words.length }}</span>
           <span class="you__label">
-            words met<template v-if="hardWords">, {{ hardWords }} above B2</template>
+            words met
           </span>
         </p>
       </div>
