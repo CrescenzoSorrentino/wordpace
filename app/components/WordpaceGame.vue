@@ -25,7 +25,6 @@ import {
   maskWordInExample,
   MAX_SKIPS,
   costForSkip,
-  bandForLevel,
   type LetterState,
   type HintSize,
 } from "#shared/wordle";
@@ -850,7 +849,14 @@ async function fetchDefinition(word: string) {
 
 /** Carica una parola nuova e pulisce la griglia per il turno successivo. */
 function loadWord() {
-  answer.value = pickRandomAnswer(level.value);
+  // Le parole candidate a tornare: le ultime salvate nel browser, meno quelle
+  // già uscite in QUESTA partita. Rivedere una parola dieci minuti dopo non è
+  // ripasso, è un livello regalato.
+  const queue = loadReviewQueue();
+  const thisRun = wordsSeen.value.map((seen) => seen.word);
+  const forReview = queue.filter((word) => !thisRun.includes(word));
+
+  answer.value = pickRandomAnswer(level.value, forReview);
   fetchDefinition(answer.value); // parte adesso, arriverà molto prima che serva
   guesses.value = [];
   evaluations.value = [];

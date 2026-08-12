@@ -154,6 +154,16 @@ const B1_FROM_LEVEL = 3;
 const B2_FROM_LEVEL = 5;
 const C1_C2_FROM_LEVEL = 8;
 
+/**
+ * Ogni quanto, al posto di una parola nuova, ne torna una già incontrata.
+ *
+ * Una su quattro. Più in alto il gioco si fa ripetitivo e si sente; più in
+ * basso il ripasso non si nota, e allora tanto vale non farlo. Il numero è qui
+ * e non sparso nel codice perché è una manopola da girare dopo aver giocato,
+ * non una costante di natura.
+ */
+const REVIEW_CHANCE = 0.25;
+
 // I barattoli da cui pescare, uniti una volta sola all'avvio come VALID_WORD_SET
 // più sopra: fonderli dentro la funzione significherebbe ricostruire fino a
 // 1.253 elementi a ogni parola nuova, per poi buttarli un istante dopo.
@@ -196,7 +206,6 @@ function poolForLevel(level: number): readonly string[] {
   return A1_A2_POOL;
 }
 
-
 export const BANDS = ["A1-A2", "B1", "B2", "C1-C2"] as const;
 export type Band = (typeof BANDS)[number];
 
@@ -208,17 +217,53 @@ export function bandForLevel(level: number): Band {
 }
 
 /**
+ * Fra le parole già incontrate dal giocatore, quelle che a questo livello
+ * potrebbero uscire comunque.
+ *
+ * Serve perché la coda di ripasso non sa niente di difficoltà: contiene le
+ * ultime venti parole viste, e fra quelle può esserci una C1 incontrata in una
+ * partita andata bene. Ripescarla al livello 1 butterebbe a mare la taratura
+ * CEFR, quindi il ripasso si tiene dentro il barattolo del livello.
+ *
+ * Può restituire una lista vuota, ed è un risultato legittimo: significa
+ * "niente da ripassare qui", e chi chiama ripiega sul pescaggio normale.
+ */
+function seenForLevel(level: number, seen: string[]): string[] {
+  const pool = poolForLevel(level);
+  return seen.filter((word) => pool.includes(word));
+}
+
+/**
  * Sceglie una soluzione a caso fra quelle in gioco al livello indicato.
  * Math.random va benissimo qui: la scelta deve solo essere imprevedibile per il
  * giocatore, non sicura dal punto di vista crittografico.
  *
- * Il barattolo si chiede una volta sola e si tiene in una const: le due righe
- * qui sotto devono lavorare sulla STESSA lista, e prendendola due volte si apre
- * la porta a un indice calcolato su un elenco e letto da un altro — che a volte
- * dà la parola sbagliata e a volte `undefined`.
+ * `seen` sono le ultime parole che il giocatore ha incontrato: una volta su
+ * REVIEW_CHANCE la parola viene ripescata da lì invece che dal barattolo. Un
+ * solo incontro con una parola non la fa imparare a nessuno, e senza ripasso
+ * ogni parola di Wordpace si vede una volta e non torna mai più.
+ *
+ * Il barattolo si sceglie PRIMA e si pesca UNA volta sola: due rami che
+ * pescano ciascuno dalla propria lista sarebbero lo stesso codice scritto due
+ * volte. Per lo stesso motivo la lista si chiede una volta e si tiene in una
+ * variabile — prendendola due volte si apre la porta a un indice calcolato su
+ * un elenco e letto da un altro, che a volte dà la parola sbagliata e a volte
+ * `undefined`.
  */
-export function pickRandomAnswer(level: number): string {
-  const pool = poolForLevel(level);
+export function pickRandomAnswer(level: number, seen: string[]): string {
+  // `let` e non `const`: questa variabile può cambiare valore qui sotto, prima
+  // di essere usata.
+  let pool = poolForLevel(level);
+
+  // Due condizioni, e l'ordine conta per chi legge: chiedersi se esce il
+  // ripasso quando non c'è niente da ripassare è una domanda senza senso.
+  // Math.random() dà un numero fra 0 e 1, che sta sotto 0,25 un quarto delle
+  // volte: è così che si tira un dado truccato.
+  const review = seenForLevel(level, seen);
+  if (review.length > 0 && Math.random() < REVIEW_CHANCE) {
+    pool = review;
+  }
+
   const index = Math.floor(Math.random() * pool.length);
   return pool[index]!;
 }
