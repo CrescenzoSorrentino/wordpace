@@ -37,6 +37,13 @@ endorsed by, The New York Times.
 - At the end of a run, every word you met comes back in one list with its
   meaning — the ones you missed and the ones you skipped included. Twelve
   seconds each is enough to read a definition, not to keep it.
+- **Words you have already met come back.** One answer in four is drawn from
+  the last twenty words you have seen rather than from the dictionary at large,
+  because a word met once is a word lost — vocabulary needs several spaced
+  encounters to stick, and until now every Wordpace word was shown once and
+  never returned. A review still has to belong to your current level's pool, so
+  a C1 word met yesterday cannot surface at level 1, and a word that already
+  appeared in the run you're playing is never repeated inside it.
 - The run ends when you run out of guesses **or** run out of time. If your score
   makes the top 10 **of the current month**, you're prompted for a nickname and
   added to the leaderboard. The board starts fresh on the first of every month,
@@ -94,6 +101,12 @@ levels are worth more.
   there is no "who", so the server would need an identifier kept in the browser
   anyway. Nothing about a player is stored server-side except a nickname they
   typed themselves to enter the board.
+- The review queue is deliberately **short** — the last twenty words, not every
+  word ever met. Drawing a review at random from the whole archive dilutes
+  itself as the archive grows: at 10 words met a given word returns every 8
+  runs, at 150 every 120, which is never. A fixed-length queue keeps the review
+  interval constant however much you play. It needs no extra stored data, since
+  the saved word list is already in first-met order.
 - Pronunciation uses the browser's built-in `speechSynthesis` — no audio files
   and no network call. A named preference list picks a real English voice, since
   macOS ships novelty voices (Zarvox, Boing…) that also declare themselves
