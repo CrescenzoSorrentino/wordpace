@@ -40,7 +40,7 @@ import {
 // nel browser un solo byte del dizionario. Importare `getDefinition` come
 // facevamo prima ci riporterebbe dentro tutte le 2.315 voci.
 import type { WordEntry } from "#shared/definitions";
-import { saveRun } from "~/utils/stats";
+import { loadReviewQueue, saveRun } from "~/utils/stats";
 
 // Le tre fasi del gioco: si sta giocando, si sta leggendo la spiegazione della
 // parola, oppure la partita è finita. Tutto il resto del codice si regola su
@@ -99,20 +99,6 @@ const nick = ref(""); // il nome che si sta scrivendo nel modulo
 const scoreSubmitted = ref(false); // punteggio di questa partita già salvato?
 
 const wordsSeen = ref<{ word: string; definition: string }[]>([]);
-
-/**
- * Quale delle due liste è in vista nella finestra di fine partita.
- *
- * Sono a schede e non una sotto l'altra perché a Game Over il giocatore vuole
- * tre cose in tre momenti diversi: prima quanto ha fatto, poi se rigiocare, e
- * soltanto dopo — con calma — rivedere le parole. Mostrandogliele insieme, la
- * finestra diventa un elenco lungo in cui il pulsante per ricominciare finisce
- * in fondo.
- *
- * Parte dalla classifica: è la risposta alla domanda che uno si fa appena
- * perso ("sono entrato?"), mentre il ripasso è una lettura che si sceglie.
- */
-const resultTab = ref<"scores" | "words">("scores");
 
 /**
  * Perché l'ultimo salvataggio è fallito, o stringa vuota se non è fallito.
@@ -340,27 +326,6 @@ const hintOptions = computed(() =>
  */
 const canBuyAnyHint = computed(() =>
   hintOptions.value.some((option) => !option.bought && option.affordable),
-);
-
-/**
- * Quale delle due liste disegnare davvero, tenendo conto che una delle due può
- * essere vuota: la classifica se la rete non ha risposto, il ripasso se la
- * partita è finita prima che arrivasse una definizione.
- *
- * La scheda scelta vale solo se ha qualcosa da mostrare, altrimenti si ripiega
- * sull'altra — meglio la lista sbagliata che una finestra con un titolo e il
- * vuoto sotto. `null` quando non c'è proprio niente.
- */
-const visibleResultList = computed<"scores" | "words" | null>(() => {
-  if (resultTab.value === "words" && wordsSeen.value.length) return "words";
-  if (leaderboard.value.length) return "scores";
-  if (wordsSeen.value.length) return "words";
-  return null;
-});
-
-/** Le schede si mostrano solo se c'è davvero qualcosa fra cui scegliere. */
-const showResultTabs = computed(
-  () => leaderboard.value.length > 0 && wordsSeen.value.length > 0,
 );
 
 const hintAvailable = computed(
@@ -902,7 +867,6 @@ function newRun() {
   nick.value = "";
   skipsUsed.value = 0;
   wordsSeen.value = [];
-  resultTab.value = "scores"; // la prossima finestra riparte dalla classifica
   grantLevelTime();
   loadWord();
 }
@@ -1313,39 +1277,13 @@ onBeforeUnmount(() => {
           </p>
         </form>
 
-        <!-- La classifica vera e propria. Il titolo dice "this month" perché
+        <!-- La classifica. Il titolo dice "this month" perché
              la lista riparte da zero ogni mese: senza, chi vede dieci punteggi
              più alti del suo pensa di essere fuori per sempre, invece che fino
              al primo del mese. È anche l'unico posto in cui il giocatore può
              accorgersi che esiste una scadenza. -->
-        <!-- Le due liste occupano lo stesso posto: sono lo stesso genere di
-             contenuto (roba da leggere con calma) e meritano lo stesso spazio,
-             ma non nello stesso momento. -->
-        <div v-if="showResultTabs" class="wordle__tabs" role="tablist">
-          <button
-            class="wordle__tab"
-            :class="{ 'wordle__tab--on': visibleResultList === 'scores' }"
-            type="button"
-            role="tab"
-            :aria-selected="visibleResultList === 'scores'"
-            @click="resultTab = 'scores'"
-          >
-            Leaderboard
-          </button>
-          <button
-            class="wordle__tab"
-            :class="{ 'wordle__tab--on': visibleResultList === 'words' }"
-            type="button"
-            role="tab"
-            :aria-selected="visibleResultList === 'words'"
-            @click="resultTab = 'words'"
-          >
-            Words ({{ wordsSeen.length }})
-          </button>
-        </div>
-
-        <div v-if="visibleResultList === 'scores'" class="wordle__block">
-          <p v-if="!showResultTabs" class="wordle__label">Best this month</p>
+        <div v-if="leaderboard.length" class="wordle__block">
+          <p class="wordle__label">Best this month</p>
           <ol class="wordle__scores">
             <li
               v-for="(entry, i) in leaderboard"
@@ -1363,27 +1301,6 @@ onBeforeUnmount(() => {
               <span class="wordle__scores-score">{{ entry.score }}</span>
             </li>
           </ol>
-        </div>
-
-        <!-- Il ripasso: tutte le parole della partita, comprese quelle non
-             indovinate e quelle saltate — anzi, sono le più interessanti da
-             rileggere. Durante la partita ogni definizione passa per dodici
-             secondi e poi sparisce; qui si rileggono con calma e si possono
-             segnare, che è la promessa con cui il gioco si presenta.
-             Scorre per conto suo invece di allungare la finestra: dopo venti
-             livelli spingerebbe "Play again" fuori dallo schermo. -->
-        <div v-if="visibleResultList === 'words'" class="wordle__block">
-          <p v-if="!showResultTabs" class="wordle__label">Words you met</p>
-          <div class="wordle__recap">
-            <div
-              v-for="(seen, i) in wordsSeen"
-              :key="i"
-              class="wordle__recap-row"
-            >
-              <p class="wordle__label">{{ seen.word.toUpperCase() }}</p>
-              <p class="wordle__recap-text">{{ seen.definition }}</p>
-            </div>
-          </div>
         </div>
 
         <button class="wordle__again" type="button" @click="newRun">
@@ -1745,16 +1662,15 @@ onBeforeUnmount(() => {
   opacity: 0.7;
 }
 
-/* Il riquadro su fondino chiaro: lo usano l'aiuto comprato, la riga della
-   classifica e quella del ripasso. Stessa forma perché sono la stessa cosa —
-   un blocchetto di contenuto dentro una finestra — e vederli con padding o
-   angoli diversi affiancati fa sembrare il gioco montato a pezzi.
+/* Il riquadro su fondino chiaro: lo usano l'aiuto comprato e la riga della
+   classifica. Stessa forma perché sono la stessa cosa — un blocchetto di
+   contenuto dentro una finestra — e vederli con padding o angoli diversi
+   affiancati fa sembrare il gioco montato a pezzi.
 
    Nessun filetto colorato: nel gioco verde e giallo hanno un significato
    preciso (lettera giusta, lettera fuori posto), e usarli qui come decorazione
    presterebbe a un testo un significato che non ha. */
 .wordle__hint-box,
-.wordle__recap-row,
 .wordle__scores-row {
   box-sizing: border-box;
   width: 100%;
@@ -2177,49 +2093,11 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
-/* Le due schede. Divise a metà esatta e non larghe quanto il loro testo: due
-   bersagli di uguale peso dicono che sono due modi di guardare la stessa cosa,
-   mentre larghezze diverse farebbero sembrare una più importante dell'altra.
-   La riga sotto fa da binario: senza, la scheda spenta galleggia nel nulla. */
-.wordle__tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  width: 100%;
-  border-bottom: 1px solid var(--wg-border);
-}
-
-.wordle__tab {
-  padding: 0.5rem 0.3rem;
-  border: none;
-  background: none;
-  color: var(--wg-dim);
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
-  /* Il bordo c'è anche da spenta, trasparente: così accendendola il testo non
-     si sposta di due pixel: */
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px; /* copre il binario, invece di appoggiarcisi sopra */
-  transition:
-    color 0.12s ease,
-    border-color 0.12s ease;
-}
-
-.wordle__tab:hover:not(.wordle__tab--on) {
-  color: var(--wg-text);
-}
-
-.wordle__tab--on {
-  color: var(--wg-text);
-  border-bottom-color: var(--wg-text);
-}
-
 /* L'etichettina che intitola una lista o un riquadro: maiuscoletto spaziato e
    colore attenuato, così dice di cosa si tratta senza competere col contenuto.
-   Una classe sola per tutti e tre i posti in cui serve (il titolo di una lista
-   a fine partita, il nome dell'aiuto comprato, la parola del ripasso): finché
-   erano tre regole quasi uguali, ritoccarne una scollava le altre. */
+   Una classe sola per tutti i posti in cui serve (il titolo della classifica a
+   fine partita, il nome dell'aiuto comprato): finché erano regole quasi uguali,
+   ritoccarne una scollava le altre. */
 .wordle__label {
   margin: 0;
   font-size: 0.6rem;
@@ -2322,35 +2200,6 @@ onBeforeUnmount(() => {
   border-color: var(--wg-border);
   color: var(--wg-dim);
   cursor: default;
-}
-
-/* === Ripasso delle parole della partita === */
-
-/* Scorre da solo invece di far crescere la finestra: una partita lunga porta
-   venti voci, e senza un tetto il pulsante "Play again" finirebbe sotto il
-   bordo dello schermo. Il tetto è in vh e non in rem perché il vincolo vero è
-   quanto è alto lo schermo di chi guarda, non quanto è grande il testo. */
-.wordle__recap {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  width: 100%;
-  max-height: 30vh;
-  overflow-y: auto;
-}
-
-/* La parola sopra e la definizione sotto, non affiancate: le definizioni sono
-   lunghe in modo imprevedibile, e su due colonne la seconda andrebbe a capo
-   scomponendo l'allineamento a ogni riga. Impilate, lo sguardo scorre la
-   colonna delle parole senza inciampi.
-
-   La definizione è in colore pieno come quella dell'aiuto comprato, non
-   attenuata: attenuare un testo lungo lo rende scomodo proprio dove va letto
-   con calma, e la gerarchia la fa già la parola in maiuscoletto sopra. */
-.wordle__recap-text {
-  margin: 0.15rem 0 0;
-  font-size: 0.88rem;
-  line-height: 1.4;
 }
 
 .wordle__scores-nick {

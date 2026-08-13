@@ -34,9 +34,6 @@ endorsed by, The New York Times.
   pronunciation with a button that speaks it aloud, its CEFR level, a
   definition and an example sentence. The clock and the keyboard are frozen
   while you read; a **Continue** button skips the remaining seconds.
-- At the end of a run, every word you met comes back in one list with its
-  meaning — the ones you missed and the ones you skipped included. Twelve
-  seconds each is enough to read a definition, not to keep it.
 - **Words you have already met come back.** One answer in four is drawn from
   the last twenty words you have seen rather than from the dictionary at large,
   because a word met once is a word lost — vocabulary needs several spaced
