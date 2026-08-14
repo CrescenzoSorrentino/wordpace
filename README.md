@@ -75,9 +75,14 @@ out what it was worth. You get **3 per run**, and each one costs more than the
 last: `10 × level × 2^(skips already used)`. At level 3, where a solved word is
 worth around 60 points, that's 30, then 60, then 120.
 
-A skip deliberately gives you *nothing* back: the level stays the same, no fresh
-seconds are granted, and the abandoned word scores zero. It buys you a word you
-might actually know — not more time.
+A skip buys you a word you might actually know — not more time. The level stays
+the same and the abandoned word scores zero. The one thing it does give back is
+a **floor**: if the clock is under 45 seconds, a skip lifts it back to 45. Not a
+gift — you get nothing at all if you were above it — but without that floor a
+skip was only useful when you didn't need it. With the clock nearly out, which
+is exactly when the button looks like a way out, you changed word and died
+anyway, poorer by the points. Runs end on time, so that was the one moment a
+player had no lever at all.
 
 ## Scoring
 

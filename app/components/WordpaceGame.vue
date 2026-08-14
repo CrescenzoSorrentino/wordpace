@@ -448,6 +448,30 @@ function buyHint(size: HintSize) {
 function skipWord() {
   if (!canSkip.value) return;
   score.value -= skipCost.value;
+
+  // Il pavimento al tempo: senza, lo skip era utile solo quando non serviva.
+  // Con l'orologio quasi a zero — cioè quando il pulsante grida "premimi", e il
+  // gioco si perde per tempo, non per tentativi — si cambiava parola e si
+  // moriva lo stesso, con meno punti di prima. Non una scelta, una trappola.
+  //
+  // È un MINIMO, non un regalo: assegna invece di sommare, così chi skippa a 2
+  // secondi e chi skippa a 40 riparte dallo stesso numero, e sopra la soglia non
+  // succede niente. Tempo pieno lo romperebbe: al livello 3 un livello vale
+  // ~253s e lo skip ne costa 30 di punti, mezza parola risolta, quindi si
+  // comprerebbe sempre.
+  //
+  // La soglia è HINT_LOW_TIME e non un 45 scritto qui: è già il punto in cui il
+  // gioco decide che sei in difficoltà e ti offre gli aiuti. Una definizione
+  // sola di "emergenza", non due che possono divergere.
+  //
+  // Bastano per una parola perché i tentativi restituiscono tempo (+10 per
+  // verde nuovo, +5 per giallo): due tentativi che rivelano qualcosa e sei di
+  // nuovo sopra la soglia. Chi non ha idea della parola muore comunque, ed è
+  // giusto — altrimenti sarebbe una resurrezione invece di un respiro.
+  if (timeLeft.value < HINT_LOW_TIME) {
+    timeLeft.value = HINT_LOW_TIME;
+  }
+
   skipsUsed.value++;
   startExplanation("same-level");
 }
