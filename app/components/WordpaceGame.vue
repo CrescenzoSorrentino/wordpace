@@ -100,6 +100,9 @@ const scoreSubmitted = ref(false); // punteggio di questa partita già salvato?
 
 const wordsSeen = ref<{ word: string; definition: string }[]>([]);
 
+const deathCause = ref<"time" | "attempts" | null>(null);
+const runHints = ref<HintSize[]>([]);
+
 /**
  * Perché l'ultimo salvataggio è fallito, o stringa vuota se non è fallito.
  *
@@ -426,6 +429,7 @@ function buyHint(size: HintSize) {
 
   score.value -= cost;
   boughtHints.value.push({ size, text });
+  runHints.value.push(size);
 }
 
 /**
@@ -746,6 +750,7 @@ function startCountdown() {
   countdownTimer = setInterval(() => {
     timeLeft.value--;
     if (timeLeft.value <= 0) {
+      deathCause.value = "time";
       startExplanation("game-over");
     }
   }, 1000);
@@ -801,6 +806,7 @@ function submitGuess() {
     score.value += wordScore();
     startExplanation("next-level");
   } else if (guesses.value.length >= MAX_ATTEMPTS || timeLeft.value <= 0) {
+    deathCause.value = timeLeft.value ? "time" : "attempts";
     startExplanation("game-over");
   }
 }
@@ -891,6 +897,8 @@ function newRun() {
   nick.value = "";
   skipsUsed.value = 0;
   wordsSeen.value = [];
+  runHints.value = [];
+  deathCause.value = null;
   grantLevelTime();
   loadWord();
 }
