@@ -639,6 +639,19 @@ function speakWord() {
   speechSynthesis.speak(utterance);
 }
 
+function reportRun() {
+  $fetch("/api/telemetry", {
+    method: "POST",
+    body: {
+      level: level.value,
+      score: score.value,
+      cause: deathCause.value,
+      skips: skipsUsed.value,
+      hints: runHints.value,
+    },
+  }).catch((e) => console.error("Could not report run:", e));
+}
+
 /**
  * Chiude la partita: ferma l'orologio, mostra Game Over, aggiorna i record
  * personali e controlla la classifica.
@@ -659,6 +672,7 @@ function endRun() {
     level.value,
     wordsSeen.value.map((seen) => seen.word),
   );
+  reportRun();
   finishRun();
 }
 
