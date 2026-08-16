@@ -820,7 +820,7 @@ function submitGuess() {
     score.value += wordScore();
     startExplanation("next-level");
   } else if (guesses.value.length >= MAX_ATTEMPTS || timeLeft.value <= 0) {
-    deathCause.value = timeLeft.value ? "time" : "attempts";
+    deathCause.value = timeLeft.value <= 0 ? "time" : "attempts";
     startExplanation("game-over");
   }
 }
