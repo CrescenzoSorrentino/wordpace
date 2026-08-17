@@ -25,6 +25,7 @@ import {
   maskWordInExample,
   MAX_SKIPS,
   costForSkip,
+  bandForLevel,
   type LetterState,
   type HintSize,
 } from "#shared/wordle";
@@ -102,6 +103,8 @@ const wordsSeen = ref<{ word: string; definition: string }[]>([]);
 
 const deathCause = ref<"time" | "attempts" | null>(null);
 const runHints = ref<HintSize[]>([]);
+
+const isReview = ref(false);
 
 /**
  * Perché l'ultimo salvataggio è fallito, o stringa vuota se non è fallito.
@@ -199,6 +202,18 @@ const keyStates = computed<Record<string, LetterState>>(() => {
 
 /** Il nome ripulito del giocatore, per evidenziare la sua riga in classifica. */
 const myNick = computed(() => sanitizeNickname(nick.value));
+
+/**
+ * La fascia di vocabolario più alta in gioco a questo livello.
+ *
+ * Si mostra il POOL sbloccato, non il livello CEFR della parola corrente, e la
+ * differenza è tutta qui: i barattoli si sommano, quindi al livello 10 può
+ * ancora uscire una A2 — un'etichetta che dicesse "A2" dopo aver detto "B2"
+ * sembrerebbe una retrocessione. Il pool invece cresce e basta, che è anche la
+ * cosa vera da comunicare: non "questa parola è difficile" ma "il gioco ora
+ * pesca anche fra le difficili".
+ */
+const unlockedBand = computed(() => bandForLevel(level.value));
 
 /** timeLeft (es. 187) formattato come minuti:secondi (es. "3:07"). */
 const timeDisplay = computed(() => {
@@ -866,6 +881,7 @@ function loadWord() {
   const forReview = queue.filter((word) => !thisRun.includes(word));
 
   answer.value = pickRandomAnswer(level.value, forReview);
+  isReview.value = forReview.includes(answer.value);
   fetchDefinition(answer.value); // parte adesso, arriverà molto prima che serva
   guesses.value = [];
   evaluations.value = [];
@@ -1019,6 +1035,48 @@ onBeforeUnmount(() => {
         <span class="wordle__stat-label">Score</span>
         <span class="wordle__stat-value">{{ score }}</span>
       </div>
+    </div>
+
+    <!-- Le due cose che il gioco faceva senza dirle. Le fasce di vocabolario e
+         il ripescaggio esistevano solo nella logica: chi giocava vedeva un
+         clone del gioco delle cinque lettere con una definizione in fondo.
+
+         In una riga loro e non dentro le celle dell'HUD: là sotto un numero
+         starebbe un testo lungo il doppio, la cella crescerebbe e deciderebbe
+         l'altezza di tutta la fila. L'altezza è fissa e riservata anche quando
+         il secondo badge non c'è, per lo stesso motivo per cui lo è la riga del
+         messaggio qui sotto: comparendo, non deve spostare la griglia mentre
+         qualcuno sta digitando. -->
+    <div class="wordle__badges">
+      <p class="wordle__badge">
+        <span class="wordle__badge-label">Unlocked</span>
+        <span class="wordle__badge-value">{{ unlockedBand }}</span>
+      </p>
+
+      <!-- Niente verde o giallo: nel gioco quei due colori dicono "lettera
+           giusta" e "lettera fuori posto", e usarli qui come decorazione
+           presterebbe un significato che questo badge non ha.
+
+           L'icona è disegnata e non un'emoji, per la stessa ragione scritta
+           sopra il pulsante degli aiuti: un SVG eredita `currentColor` e sta
+           nella tavolozza del gioco, mentre un'emoji la disegna il sistema
+           operativo — a colori pieni, diversa su ogni telefono. -->
+      <p v-if="isReview" class="wordle__badge wordle__badge--review">
+        <svg
+          class="wordle__icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M20.5 14a8.5 8.5 0 1 1-1.9-8.4" />
+          <polyline points="20.5 3.5 20.5 9 15 9" />
+        </svg>
+        <span>Seen before</span>
+      </p>
     </div>
 
     <!-- Riga di servizio: il messaggio al centro e, quando serve, il pulsante
@@ -1438,6 +1496,16 @@ onBeforeUnmount(() => {
   width: 100%;
   max-width: 30rem; /* mai più larga di così sugli schermi grandi */
   color: var(--wg-text);
+
+  /* Toglie lo zoom da doppio tocco dentro l'area di gioco. Qui il doppio tocco
+     capita per forza — si scrive una parola in cinque battute veloci sulla
+     tastiera a schermo — e ogni volta la pagina saltava dentro.
+     `manipulation` disattiva solo quel gesto: il pinch per ingrandire resta,
+     e resta apposta. La strada facile sarebbe `user-scalable=no` nel meta
+     viewport, ma quella toglie l'ingrandimento a tutta la pagina e a chiunque
+     ne abbia bisogno per leggere — si risolve il fastidio di qualcuno
+     rendendo il gioco inservibile per qualcun altro. */
+  touch-action: manipulation;
   font-family:
     "Helvetica Neue",
     -apple-system,
@@ -1554,6 +1622,58 @@ onBeforeUnmount(() => {
   font-weight: 700;
   line-height: 1.1;
   font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* === I due badge: fascia sbloccata e parola di ripasso === */
+
+/* Altezza riservata anche quando il secondo badge non c'è: senza, la griglia
+   salterebbe su e giù di venti pixel a ogni parola di ripasso. È lo stesso
+   accorgimento della riga del messaggio. */
+.wordle__badges {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 1.4rem;
+  /* Si appoggia all'HUD invece di stare a mezz'aria fra HUD e griglia: parlano
+     della stessa cosa — a che punto è la partita — e due blocchi imparentati
+     vicini si leggono come uno. Recupera anche mezza riga di altezza, che su
+     un telefono con griglia e tastiera è spazio che non c'è. */
+  margin-top: -0.6rem;
+}
+
+.wordle__badge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--wg-dim);
+}
+
+.wordle__badge-label {
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+/* Il valore in colore pieno, l'etichetta attenuata: fra i due, quello che il
+   giocatore deve leggere è la fascia. */
+.wordle__badge-value {
+  font-size: 0.78rem;
+  color: var(--wg-text);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* Su fondino, come le altre pastiglie del gioco: senza, un testo minuscolo in
+   fondo a destra si legge come un residuo invece che come un'informazione. */
+.wordle__badge--review {
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
+  background: var(--wg-surface);
+  text-transform: uppercase;
 }
 
 /* Quando il tempo sta per scadere il riquadro si accende di rosso. */

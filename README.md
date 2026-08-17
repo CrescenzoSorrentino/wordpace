@@ -34,6 +34,13 @@ endorsed by, The New York Times.
   pronunciation with a button that speaks it aloud, its CEFR level, a
   definition and an example sentence. The clock and the keyboard are frozen
   while you read; a **Continue** button skips the remaining seconds.
+- The game says what it is doing while you play. A badge shows the **widest
+  CEFR band unlocked** at your level — the pool, not the current word, because
+  pools stack: a level-10 run can still serve an A2 word, and a badge reading
+  "A2" right after "B2" would look like a demotion. A second badge marks the
+  word as one you have **seen before**. Both were invisible before: the bands
+  and the review system lived in the logic, and a run looked like a plain
+  five-letter game with a definition at the end.
 - **Words you have already met come back.** One answer in four is drawn from
   the last twenty words you have seen rather than from the dictionary at large,
   because a word met once is a word lost — vocabulary needs several spaced
@@ -109,6 +116,23 @@ levels are worth more.
   runs, at 150 every 120, which is never. A fixed-length queue keeps the review
   interval constant however much you play. It needs no extra stored data, since
   the saved word list is already in first-met order.
+- Every finished run logs **one line** — level reached, score, whether time or
+  guesses ended it, which hints were bought, how many skips — kept as a Redis
+  list capped at the last thousand. It exists because the game had been tuned
+  on one player's impressions: the level thresholds for the CEFR bands assume
+  most runs end around level 3-4, and that was an estimate nobody had measured.
+  The call is not awaited and swallows its own failure — a run that cannot be
+  logged must cost the player nothing.
+- A review word is worth the same as any other. Scoring is
+  `(10 + unusedAttempts * 5) * level`, so remembering a word already pays —
+  you solve it in fewer guesses and keep the seconds. Adding a bonus would pay
+  twice for the same thing, and taking points away would punish the one
+  outcome the game exists to produce.
+- The game area sets `touch-action: manipulation`, which drops double-tap zoom
+  (and the ~300ms wait browsers spend deciding whether a second tap is coming)
+  on a keyboard where five quick taps are the normal case. Pinch zoom is left
+  alone on purpose: `user-scalable=no` would have been the quick fix and takes
+  zooming away from everyone who needs it to read.
 - Pronunciation uses the browser's built-in `speechSynthesis` — no audio files
   and no network call. A named preference list picks a real English voice, since
   macOS ships novelty voices (Zarvox, Boing…) that also declare themselves
@@ -136,6 +160,7 @@ server/utils/leaderboard.ts     the Redis key of the current month's board
 server/api/definition.get.ts    one dictionary entry, by word
 server/api/leaderboard.get.ts   read the top 10
 server/api/leaderboard.post.ts  save a score (validated + rate limited)
+server/api/telemetry.post.ts    log one line per finished run
 scripts/                        dictionary generation + validation (see below)
 ```
 
@@ -215,6 +240,10 @@ redeploy so they take effect.
 ## Notes
 
 - No accounts: the leaderboard keeps only the top 10 and trims the rest.
+- Nothing identifying is stored about a player. The only name Wordpace ever
+  keeps is one typed deliberately to enter the leaderboard; personal records
+  never leave the browser, and a logged run carries no nickname and no address
+  — an address is used to rate-limit the write and is never part of the line.
 - The score is still reported by the client, so it can be faked — the server
   only limits the damage: it rejects anything above a plausible ceiling, allows
   5 submissions per hour per address, and wipes the board monthly. A forged
