@@ -89,7 +89,7 @@ export default defineEventHandler(async (event) => {
   // lpush mette in cima: le partite più recenti stanno all'inizio, che è
   // l'ordine in cui le si vuole leggere. ltrim tiene solo le prime
   // MAX_RUNS_KEPT e butta il resto — senza, la lista crescerebbe per sempre.
-  await redis.lpush(runsKey, JSON.stringify(body));
+  await redis.lpush(runsKey, JSON.stringify({...body, date: new Date().toISOString()}));
   await redis.ltrim(runsKey, 0, MAX_RUNS_KEPT - 1);
 
   return { ok: true };

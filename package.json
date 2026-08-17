@@ -10,6 +10,7 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
+    "runs": "node --env-file=.env scripts/analyze-runs.mjs",
     "typecheck": "nuxt typecheck",
     "postinstall": "nuxt prepare"
   },
