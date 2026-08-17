@@ -78,7 +78,7 @@ function missingWords() {
  *
  * Conseguenza pratica: non serve un parser difensivo che ripulisca la risposta
  * dalle frasi di cortesia o dai blocchi di codice markdown, perché non possono
- * esserci. `level` è addirittura vincolato ai tre valori ammessi.
+ * esserci. Ogni campo ha il suo tipo e sono tutti obbligatori.
  */
 const SCHEMA = {
   type: "object",
@@ -91,11 +91,11 @@ const SCHEMA = {
           word: { type: "string" },
           pos: { type: "string" },
           ipa: { type: "string" },
-          level: { type: "string", enum: ["common", "uncommon", "rare"] },
           en: { type: "string" },
+          short: { type: "string" },
           example: { type: "string" },
         },
-        required: ["word", "pos", "ipa", "level", "en", "example"],
+        required: ["word", "pos", "ipa", "en", "short", "example"],
         additionalProperties: false,
       },
     },
@@ -105,26 +105,51 @@ const SCHEMA = {
 };
 
 /**
- * Le istruzioni, identiche per tutte le richieste. Sono l'equivalente scritto
- * dei criteri che avevamo fissato a mano: inglese semplice, una frase che
- * contiene davvero la parola, niente traduzioni italiane.
+ * Le istruzioni, identiche per tutte le richieste.
+ *
+ * La versione precedente diceva "in simple English" e basta, ed era troppo
+ * vaga: sono uscite definizioni da dizionario normale, corrette e inutili per
+ * chi impara. La prova che le ha bocciate è del 2026-08-17 — tre quiz su carta
+ * con definizioni vere, quindici secondi ciascuno, zero risposte giuste, e il
+ * motivo non era la lunghezza ma le parole DENTRO le definizioni: `oak`,
+ * `monks`, `valuables`. Si chiedeva di conoscere quattro parole difficili per
+ * riconoscerne una difficile. Lo stesso era già successo all'insegnante
+ * d'inglese, che ha comprato l'aiuto grande in partita e non ne è venuto fuori.
+ *
+ * Da qui il vincolo del vocabolario controllato, che è il metodo dei dizionari
+ * per studenti (Longman definisce tutte le voci con ~2.000 parole di base), e
+ * la clausola che dice cosa fare quando semplicità e precisione confliggono:
+ * vince la precisione. Una definizione facile e sbagliata è peggio di una
+ * difficile e giusta.
  *
  * Stanno nel prompt di sistema e non nel messaggio, così restano invariate fra
  * una richiesta e l'altra — e l'API le riconosce come già viste, facendole
  * costare meno.
  */
-const SYSTEM_PROMPT = `You write dictionary entries for a word game that helps people learn English vocabulary. The players are not native speakers.
+const SYSTEM_PROMPT = `You write dictionary entries for a word game that teaches English vocabulary. The players are learners, not native speakers — many of them around A2 or B1. They read your text in about twelve seconds, under time pressure, right after playing a word.
 
-For each word you are given, produce exactly one entry with these fields:
+THE ONE RULE THAT MATTERS MOST
+
+Explain a hard word using easy words. Restrict yourself to roughly the 2,000 most frequent words of English — the defining vocabulary a learner's dictionary uses. Never explain a word with a word that is as hard as it, or harder.
+
+This is not a style preference, it is the whole point. "The nut of an oak tree" is a correct definition of "acorn" and a useless one: a learner who does not know "acorn" usually does not know "oak" either, so the sentence teaches nothing. "A nut that grows on a big tree" teaches the word.
+
+Apply the same restriction to the example sentence. An example built out of difficult words explains nothing.
+
+WHEN SIMPLE AND ACCURATE PULL APART
+
+Accuracy wins. If plain words would make the definition wrong, vague, or true of many other things, spend an extra word or two rather than mislead. "A nut from a tree" is too vague for "acorn" — most nuts come from trees. Simple is the goal; imprecise is a failure.
+
+Simple vocabulary, adult tone. Write the way a good learner's dictionary writes: plain, calm, factual. Never childish, never chatty, no exclamation marks, no addressing the reader.
+
+FIELDS
 
 - "word": the word exactly as given, lowercase.
 - "pos": the part of speech, in English. One of: noun, verb, adjective, adverb, preposition, conjunction, pronoun, interjection, determiner. If the word is commonly used as more than one, join them with " · " (space, middle dot, space), most common first. Never more than two.
 - "ipa": the pronunciation in IPA, wrapped in slashes, General American. Example: "/aɪl/".
-- "level": how worth learning the word is — "common" for everyday vocabulary, "uncommon" for words an intermediate learner meets occasionally, "rare" for archaic, technical or literary words.
-- "en": one short definition in simple English, 6 to 14 words, ending with a full stop. Define the most frequent sense. If a second sense is genuinely common, add it after a semicolon or "or". Never use the word itself in its own definition.
+- "en": one definition, 6 to 14 words, ending with a full stop. Define the most frequent sense. If a second sense is genuinely common, add it after a semicolon. Never use the word itself, or a word from its own family, to define it.
+- "short": the same meaning compressed to 2 to 5 words, no full stop. It is shown as one of four options in a multiple-choice question, so it must be readable at a glance AND specific enough to tell this word apart from other words of the same kind. "a big piece" works for "chunk"; "a thing" does not. Use only the plainest words here — this is the field with the least room for anything difficult.
 - "example": one natural sentence, 5 to 12 words, that uses the word (any inflected form is fine) and makes its meaning clear from context. End with a full stop. Do not put the word in quotes.
-
-Write for clarity, not for style. Keep every entry self-contained.
 
 Return one entry per word given, in the same order, and no extra words.`;
 
@@ -134,7 +159,7 @@ const client = new Anthropic(); // legge da sola ANTHROPIC_API_KEY dall'ambiente
 
 /**
  * Chiede le definizioni di un gruppo di parole e restituisce l'oggetto pronto
- * da salvare: { parola: {pos, ipa, level, en, example}, ... }.
+ * da salvare: { parola: {pos, ipa, en, short, example}, ... }.
  *
  * Riprova in caso di errore, aspettando sempre di più fra un tentativo e
  * l'altro ("backoff"): se il servizio è sovraccarico, ritentare subito peggiora

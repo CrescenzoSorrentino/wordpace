@@ -53,6 +53,7 @@ export const MISSING_DEFINITION: WordEntry = {
   ipa: "",
   cefr: "",
   en: "No definition available for this word yet.",
+  short: "",
   example: "",
 };
 

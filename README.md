@@ -200,10 +200,10 @@ Environment variables (see `.env.example`):
 
 ## The dictionary
 
-`shared/words/definitions.ts` holds one entry per answer word — part of speech,
-IPA, definition and example sentence. It is generated, not
-hand-written, so that all 2,315 entries come out of a single prompt and stay
-consistent with each other.
+`shared/words/definitions.ts` holds one entry per answer word — part of
+speech, IPA, a definition, a short gloss for the recall quiz, and an example
+sentence. It is generated, not hand-written, so that all 2,315 entries come
+out of a single prompt and stay consistent with each other.
 
 ```bash
 node --env-file=.env scripts/generate-definitions.mjs   # generate what's missing
@@ -218,10 +218,13 @@ node scripts/build-answer-tiers.mjs                     # re-split answers by ti
   only asks for words that are still missing, so an interrupted run resumes
   where it stopped and nothing is paid for twice.
 - **Validation** is a separate step on purpose. It checks coverage against the
-  answer list, duplicates, unknown parts of speech, IPA wrapped in slashes, and
-  that every example sentence actually uses its word. Irregular verbs
-  (`cling` → *clung*) trip the last check and are false positives — the warning
-  says so.
+  answer list, duplicates, unknown parts of speech, IPA wrapped in slashes, the
+  short gloss's length (1–6 words), and that every example sentence actually
+  uses its word. Irregular verbs (`cling` → *clung*) trip the last check; known
+  ones are whitelisted after being checked by eye, everything else is a
+  warning to look at, not to auto-fix. **It refuses to write the dictionary at
+  all while any problem is open** — this file can't be reconstructed by hand,
+  so a partial rewrite is worse than stopping.
 - Intermediate JSON blocks live in `scripts/.cache/` and are git-ignored; they
   can be regenerated at any time.
 - **CEFR grading** asks for the level at which a learner is expected to know
@@ -260,6 +263,13 @@ redeploy so they take effect.
 - The dictionary was written by Claude and reviewed by sampling, not entry by
   entry. Expect the odd imprecise IPA transcription; the 🔊 button is the
   authoritative pronunciation.
+- Definitions and examples use a **controlled vocabulary**: explain a word
+  with easier words, never one as hard as the word itself — the same
+  principle behind every learner's dictionary (Longman, Oxford Advanced
+  Learner's). It exists because the first version didn't follow it: "the nut
+  of an oak tree" is a correct definition of *acorn* and a useless one — a
+  learner who doesn't know *acorn* usually doesn't know *oak* either. A paper
+  test with real entries confirmed it before the full 2,315-word rebuild.
 
 ## License
 

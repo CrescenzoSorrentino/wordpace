@@ -273,6 +273,7 @@ const EMPTY_DEFINITION: WordEntry = {
   ipa: "",
   cefr: "",
   en: "",
+  short: "",
   example: "",
 };
 
