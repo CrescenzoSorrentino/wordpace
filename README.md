@@ -122,7 +122,11 @@ levels are worth more.
   on one player's impressions: the level thresholds for the CEFR bands assume
   most runs end around level 3-4, and that was an estimate nobody had measured.
   The call is not awaited and swallows its own failure — a run that cannot be
-  logged must cost the player nothing.
+  logged must cost the player nothing. `npm run runs` reads those lines back
+  and prints how runs end, how many ever reach the levels where each band
+  opens, and whether hints and skips get bought at all. The level counts are
+  cumulative on purpose: "how many reach level 3" is the question the band
+  design rests on.
 - A review word is worth the same as any other. Scoring is
   `(10 + unusedAttempts * 5) * level`, so remembering a word already pays —
   you solve it in fewer guesses and keep the seconds. Adding a bonus would pay
@@ -161,6 +165,7 @@ server/api/definition.get.ts    one dictionary entry, by word
 server/api/leaderboard.get.ts   read the top 10
 server/api/leaderboard.post.ts  save a score (validated + rate limited)
 server/api/telemetry.post.ts    log one line per finished run
+scripts/analyze-runs.mjs        read the recorded runs (npm run runs)
 scripts/                        dictionary generation + validation (see below)
 ```
 
@@ -191,6 +196,7 @@ Environment variables (see `.env.example`):
 | `npm run build` | Production build |
 | `npm run preview` | Preview the production build |
 | `npm run typecheck` | Type-check app, server and shared code |
+| `npm run runs` | Read the recorded runs and print what they say |
 
 ## The dictionary
 
