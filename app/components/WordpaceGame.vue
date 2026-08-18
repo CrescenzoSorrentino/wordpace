@@ -106,6 +106,9 @@ const runHints = ref<HintSize[]>([]);
 
 const isReview = ref(false);
 
+// Ancora inutilizzata: sarà la lista da cui pescare i tentativi contro il
+// boss lessicale (vedi la roadmap). wordsSeen non basta perché contiene
+// anche le parole PERSE, e questa deve contenere solo quelle vinte davvero.
 const solvedWords = ref<string[]>([]);
 
 /**
