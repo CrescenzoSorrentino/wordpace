@@ -106,6 +106,8 @@ const runHints = ref<HintSize[]>([]);
 
 const isReview = ref(false);
 
+const solvedWords = ref<string[]>([]);
+
 /**
  * Perché l'ultimo salvataggio è fallito, o stringa vuota se non è fallito.
  *
@@ -833,6 +835,7 @@ function submitGuess() {
   // incassano SUBITO, prima che la griglia venga azzerata: wordScore() conta i
   // tentativi usati, e fra venti secondi quel dato non ci sarà più.
   if (guess === answer.value) {
+    solvedWords.value.push(answer.value);
     score.value += wordScore();
     startExplanation("next-level");
   } else if (guesses.value.length >= MAX_ATTEMPTS || timeLeft.value <= 0) {
@@ -929,6 +932,7 @@ function newRun() {
   skipsUsed.value = 0;
   wordsSeen.value = [];
   runHints.value = [];
+  solvedWords.value = [];
   deathCause.value = null;
   grantLevelTime();
   loadWord();
