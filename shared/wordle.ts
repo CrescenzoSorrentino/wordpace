@@ -269,14 +269,14 @@ export function pickRandomAnswer(level: number, seen: string[]): string {
 }
 
 /**
- * Sceglie a caso la parola segreta di un boss, dal barattolo del suo tier
- * (0 = A1-A2, 1 = +B1, 2 = +B2, 3 = tutto).
+ * Sceglie a caso la parola segreta di un tier del Vault, dal barattolo del
+ * suo tier (0 = A1-A2, 1 = +B1, 2 = +B2, 3 = tutto).
  *
  * Due estrazioni, non una: quale barattolo usare non è a caso — lo dice
  * `tier` — mentre quale parola dentro quel barattolo lo è, con lo stesso
  * meccanismo di pickRandomAnswer qui sopra.
  */
-export function bossWordForTier(tier: number): string {
+export function vaultWordForTier(tier: number): string {
   const pools = [A1_A2_POOL, B1_POOL, B2_POOL, ANSWER_WORDS];
   const pool = pools[tier]!;
   const index = Math.floor(Math.random() * pool.length);

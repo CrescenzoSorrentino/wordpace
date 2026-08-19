@@ -26,6 +26,7 @@ import {
   MAX_SKIPS,
   costForSkip,
   bandForLevel,
+  vaultWordForTier,
   type LetterState,
   type HintSize,
 } from "#shared/wordle";
@@ -106,9 +107,16 @@ const runHints = ref<HintSize[]>([]);
 
 const isReview = ref(false);
 
-// Ancora inutilizzata: sarà la lista da cui pescare i tentativi contro il
-// boss lessicale (vedi la roadmap). wordsSeen non basta perché contiene
-// anche le parole PERSE, e questa deve contenere solo quelle vinte davvero.
+// Stato del Vault: tier corrente, la sua parola segreta, e i tentativi fatti
+// contro quel tier (in coppia, come guesses/evaluations del gioco principale).
+const vaultTier = ref(0);
+const vaultWord = ref("");
+const vaultGuesses = ref<string[]>([]);
+const vaultEvaluations = ref<LetterState[][]>([]);
+
+// Le parole vinte in partita, usate come tentativi contro il Vault (vedi la
+// roadmap). wordsSeen non basta perché contiene anche le parole PERSE, e
+// questa deve contenere solo quelle vinte davvero.
 const solvedWords = ref<string[]>([]);
 
 /**
@@ -937,8 +945,33 @@ function newRun() {
   runHints.value = [];
   solvedWords.value = [];
   deathCause.value = null;
+  vaultWord.value = vaultWordForTier(0);
+  vaultTier.value = 0;
+  vaultGuesses.value = [];
+  vaultEvaluations.value = [];
   grantLevelTime();
   loadWord();
+}
+
+/** Tier del Vault indovinato: punti bonus e passaggio al tier successivo. */
+function advanceVaultTier() {
+  score.value += 50 * level.value;
+  if (vaultTier.value >= 3) return;
+  vaultTier.value++;
+  vaultWord.value = vaultWordForTier(vaultTier.value);
+  vaultGuesses.value = [];
+  vaultEvaluations.value = [];
+}
+
+/** Registra un tentativo contro il Vault e lo toglie dalle parole ancora disponibili. */
+function submitVaultGuess(word: string) {
+  const colors = evaluateGuess(word, vaultWord.value);
+  vaultGuesses.value.push(word);
+  vaultEvaluations.value.push(colors);
+  solvedWords.value = solvedWords.value.filter((solved) => solved !== word);
+  if (word === vaultWord.value) {
+    advanceVaultTier();
+  }
 }
 
 /** Parola indovinata: si sale di un livello e si carica la parola successiva. */
