@@ -14,9 +14,9 @@ const props = defineProps<{
   score: number;
   guesses: string[];
   evaluations: LetterState[][];
-  closed: boolean;
   solvedWords: { word: string; wasReview: boolean }[];
   wonWord: string | null;
+  guessCost: { cost: number; affordable: boolean };
 }>();
 
 const emit = defineEmits<{
@@ -59,9 +59,9 @@ watch(
 
 // Stessa forma di `board` nel gioco principale, e stessa griglia fissa
 // (WORD_LENGTH × MAX_ATTEMPTS): righe per i tentativi già inviati, poi la
-// riga attiva (finché il tier non è chiuso), poi tutte le righe restanti
-// vuote, così la griglia ha sempre lo stesso aspetto della home invece di
-// crescere e restringersi con ogni tentativo.
+// riga attiva, poi tutte le righe restanti vuote, così la griglia ha sempre
+// lo stesso aspetto della home invece di crescere e restringersi con ogni
+// tentativo.
 const board = computed(() => {
   const rows: { letter: string; state: LetterState | "empty" | "filled" }[][] =
     [];
@@ -71,7 +71,7 @@ const board = computed(() => {
       [];
 
     const submitted = r < props.guesses.length;
-    const isActiveRow = r === props.guesses.length && !props.closed;
+    const isActiveRow = r === props.guesses.length;
 
     for (let c = 0; c < WORD_LENGTH; c++) {
       if (submitted) {
@@ -129,6 +129,10 @@ function submitFree() {
     error.value = "Not in word list";
     return;
   }
+  if (!props.guessCost.affordable) {
+    error.value = "Not enough points";
+    return;
+  }
   error.value = "";
   emit("guess", word, true);
   freeGuess.value = "";
@@ -136,9 +140,9 @@ function submitFree() {
 
 /**
  * Tastiera fisica: Escape chiude il popup della lista se è aperto; altrimenti
- * scrive nel tentativo libero, a meno che il tier non sia chiuso. Il
- * genitore, con questo pannello aperto, non fa già più nulla con i tasti (si
- * ferma all'Escape) quindi qui si può ascoltare senza conflitti.
+ * scrive nel tentativo libero. Il genitore, con questo pannello aperto, non
+ * fa già più nulla con i tasti (si ferma all'Escape) quindi qui si può
+ * ascoltare senza conflitti.
  */
 function onPhysicalKey(event: KeyboardEvent) {
   if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -147,8 +151,6 @@ function onPhysicalKey(event: KeyboardEvent) {
     if (event.key === "Escape") listOpen.value = false;
     return;
   }
-
-  if (props.closed) return;
 
   if (event.key === "Enter") {
     handleKey("enter");
@@ -227,7 +229,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
         </button>
 
         <button
-          v-if="!closed"
           class="wordle__hint-open"
           type="button"
           @click="listOpen = true"
@@ -251,28 +252,21 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
 
     <div class="wordle__status-row">
       <p class="wordle__message" role="status" aria-live="polite">
-        {{ error || (closed ? "This tier is locked" : "") }}
+        {{ error }}
       </p>
     </div>
 
     <GameBoard :rows="board" />
 
-    <p v-if="closed" class="vault__closed">
-      Wrong guess on the free attempt — this tier is locked for the rest of
-      the run.
+    <!-- La tastiera resta sempre lì: scrivere il tentativo libero non blocca
+         mai nulla, costa solo qualcosa se sbagli. Stessa lingua della
+         didascalia sopra gli aiuti: un avviso scritto, non un blocco. -->
+    <p class="vault__keyboard-warning">
+      A wrong guess costs {{ guessCost.cost }} points — it never locks the
+      tier.<br />
+      Try a word from the List first to keep it cheap.
     </p>
-
-    <!-- La tastiera resta fissa sotto la griglia: scrivere il tentativo
-         libero è sempre l'azione di base, la lista è un'opzione a parte.
-         Stessa lingua della didascalia sopra gli aiuti: un avviso scritto,
-         non un blocco — chi ha già capito la regola non perde tempo. -->
-    <template v-else>
-      <p class="vault__keyboard-warning">
-        One shot only — a wrong guess locks this tier for good.<br />
-        Try a word from the List first.
-      </p>
-      <OnScreenKeyboard :key-states="keyStates" @key="handleKey" />
-    </template>
+    <OnScreenKeyboard :key-states="keyStates" @key="handleKey" />
 
     <!-- Popup della lista: le parole già risolte, scelte una alla volta come
          tentativo — stessa finestra usata dagli aiuti nel gioco principale. -->
@@ -575,14 +569,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
   margin: 0;
   font-size: 0.85rem;
   color: var(--wg-dim);
-}
-
-.vault__closed {
-  margin: 0.5rem 0 0;
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--wg-urgent);
-  text-align: center;
 }
 
 .vault__keyboard-warning {

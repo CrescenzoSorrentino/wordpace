@@ -112,6 +112,12 @@ const HINT_COSTS: Record<HintSize, number> = {
   large: HINT_COST_LARGE,
 };
 
+// Prezzo base del tentativo libero nel Vault, in punti per livello, come per
+// gli aiuti — stesso valore dell'aiuto grande (HINT_COST_LARGE), visto che
+// qui si compra qualcosa di altrettanto prezioso: un tentativo che, se
+// giusto, chiude un intero tier.
+const VAULT_GUESS_COST = 12;
+
 /**
  * L'esito di una singola lettera di un tentativo:
  * - "correct": lettera giusta al posto giusto (verde)
@@ -388,6 +394,21 @@ export function costForSkip(level: number, used: number): number {
 }
 
 /**
+ * Prezzo del tentativo libero nel Vault: cresce col livello (come ogni
+ * altro prezzo) e con `confirmed`, quante posizioni della parola segreta
+ * sono già confermate corrette in questo tier — lista o libero che sia il
+ * tentativo che le ha rivelate.
+ *
+ * `confirmed + 1` e non `confirmed`: a zero posizioni conosciute il
+ * tentativo deve comunque costare il prezzo base (un vero azzardo), non
+ * essere gratis — `confirmed` da solo azzererebbe il prezzo proprio quando
+ * il rischio è più alto.
+ */
+export function costForVaultGuess(level: number, confirmed: number): number {
+  return VAULT_GUESS_COST * level * (confirmed + 1);
+}
+
+/**
  * Una lettera della soluzione che il giocatore non ha ancora provato, scelta a
  * caso fra quelle disponibili. È il contenuto dell'aiuto piccolo.
  *
@@ -463,4 +484,29 @@ export function keyStatesFor(
   });
 
   return map;
+}
+
+/**
+ * Quante posizioni della parola segreta sono già state confermate corrette
+ * ("correct", verde) in un qualsiasi tentativo fatto finora — non quante
+ * lettere verdi in totale, ma quanti POSTI distinti, contati una volta sola
+ * anche se più tentativi hanno confermato la stessa posizione. Serve a
+ * `costForVaultGuess` per far costare di più un tentativo quanto più è
+ * vicino alla certezza.
+ */
+export function evaluationsCountPosition(
+  evaluations: LetterState[][],
+): number {
+  const confirmed = [false, false, false, false, false];
+  for (let r = 0; r < evaluations.length; r++) {
+    const row = evaluations[r]!;
+
+    for (let c = 0; c < WORD_LENGTH; c++) {
+      const column = row[c]!;
+      if (column === "correct") {
+        confirmed[c] = true;
+      }
+    }
+  }
+  return confirmed.filter((p) => p === true).length;
 }

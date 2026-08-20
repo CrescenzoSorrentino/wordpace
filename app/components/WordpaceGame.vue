@@ -28,6 +28,8 @@ import {
   bandForLevel,
   vaultWordForTier,
   keyStatesFor,
+  evaluationsCountPosition,
+  costForVaultGuess,
   type LetterState,
   type HintSize,
 } from "#shared/wordle";
@@ -104,7 +106,6 @@ const isReview = ref(false);
 // contro quel tier (in coppia, come guesses/evaluations del gioco principale).
 const vaultTier = ref(0);
 const vaultWord = ref("");
-const vaultTierClosed = ref(false);
 const vaultGuesses = ref<string[]>([]);
 const vaultEvaluations = ref<LetterState[][]>([]);
 // La parola appena indovinata nel Vault, mentre se ne spiega il significato —
@@ -335,6 +336,15 @@ const hintOptions = computed(() =>
   }),
 );
 
+// Prezzo del PROSSIMO tentativo libero: cresce con quante posizioni sono
+// già confermate in questo tier (poco sai, poco rischi; molto sai, quasi
+// compri la vittoria — deve costare quanto vale).
+const vaultGuessCost = computed(() => {
+  const confirmed = evaluationsCountPosition(vaultEvaluations.value);
+  const cost = costForVaultGuess(level.value, confirmed);
+  return { cost, affordable: score.value >= cost };
+});
+
 /**
  * Se c'è almeno un aiuto che il giocatore può davvero comprare adesso: non
  * ancora preso, e alla sua portata. Serve ad accendere la lampadina.
@@ -347,13 +357,11 @@ const canBuyAnyHint = computed(() =>
 );
 
 /**
- * Se c'è almeno una parola risolta da provare contro il Vault, e il tier
- * corrente non è già chiuso — stesso ruolo di canBuyAnyHint, per accendere
- * l'icona del Vault invece che quella degli aiuti.
+ * Se c'è almeno una parola risolta da provare contro il Vault — stesso
+ * ruolo di canBuyAnyHint, per accendere l'icona del Vault invece che
+ * quella degli aiuti.
  */
-const vaultHasAttempt = computed(
-  () => solvedWords.value.length > 0 && !vaultTierClosed.value,
-);
+const vaultHasAttempt = computed(() => solvedWords.value.length > 0);
 
 const hintAvailable = computed(
   () =>
@@ -944,7 +952,6 @@ function newRun() {
   vaultTier.value = 0;
   vaultGuesses.value = [];
   vaultEvaluations.value = [];
-  vaultTierClosed.value = false;
   vaultWonWord.value = null;
   grantLevelTime();
   loadWord();
@@ -957,20 +964,26 @@ function advanceVaultTier() {
   vaultWord.value = vaultWordForTier(vaultTier.value);
   vaultGuesses.value = [];
   vaultEvaluations.value = [];
-  vaultTierClosed.value = false;
 }
 
-/** Chiude la spiegazione del Vault e passa davvero al tier successivo. */
+/** Chiude la spiegazione della vittoria e passa al tier successivo. */
 function continueVaultTier() {
   vaultWonWord.value = null;
-  if (!vaultTierClosed.value) {
-    advanceVaultTier();
-  }
+  advanceVaultTier();
 }
 
-/** Registra un tentativo contro il Vault e lo toglie dalle parole ancora disponibili. */
+/**
+ * Registra un tentativo contro il Vault e lo toglie dalle parole ancora
+ * disponibili. Il tentativo libero non è mai bloccato in modo permanente:
+ * costa punti solo se sbagliato, e il prezzo cresce con quante posizioni
+ * sono già confermate — poco sai, poco rischi; molto sai, quasi compri la
+ * vittoria. Il costo si legge PRIMA di registrare questo tentativo, così
+ * riflette solo quello che sapevi già, non l'informazione appena arrivata.
+ */
 function submitVaultGuess(word: string, isFreeGuess: boolean) {
-  if (vaultTierClosed.value) return;
+  const cost = vaultGuessCost.value.cost;
+  if (isFreeGuess && score.value < cost) return;
+
   const colors = evaluateGuess(word, vaultWord.value);
   vaultGuesses.value.push(word);
   vaultEvaluations.value.push(colors);
@@ -983,10 +996,8 @@ function submitVaultGuess(word: string, isFreeGuess: boolean) {
     // fermo mentre leggi come se non avessi appena vinto nulla.
     score.value += 50 * level.value;
     vaultWonWord.value = word;
-  }
-  if (word !== vaultWord.value && isFreeGuess) {
-    vaultTierClosed.value = true;
-    vaultWonWord.value = vaultWord.value;
+  } else if (isFreeGuess) {
+    score.value -= cost;
   }
 }
 
@@ -1194,7 +1205,9 @@ onBeforeUnmount(() => {
             :class="{ 'wordle__hint-open--lit': vaultHasAttempt }"
             type="button"
             :aria-label="
-              vaultHasAttempt ? 'Open the Vault — a guess is ready' : 'Open the Vault'
+              vaultHasAttempt
+                ? 'Open the Vault — a guess is ready'
+                : 'Open the Vault'
             "
             @click="vaultPanelOpen = true"
           >
@@ -1581,9 +1594,9 @@ onBeforeUnmount(() => {
       :score="score"
       :guesses="vaultGuesses"
       :evaluations="vaultEvaluations"
-      :closed="vaultTierClosed"
       :solved-words="solvedWords"
       :won-word="vaultWonWord"
+      :guess-cost="vaultGuessCost"
       @guess="submitVaultGuess"
       @close="vaultPanelOpen = false"
       @continue="continueVaultTier"

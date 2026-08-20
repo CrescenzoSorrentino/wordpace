@@ -102,11 +102,14 @@ unlocked (A1–A2, then +B1, +B2, all bands), cracked with words you've
   word — colored exactly like a normal guess. A wrong try costs nothing; a
   word leaves the list only once you've tried it.
 - You can also **type a guess freely** with the same on-screen keyboard,
-  whenever you want — but it's a single shot: get it wrong and that tier
-  locks for the rest of the run (the other tiers stay open if already
-  unlocked).
-- Solving a tier banks `50 × level` points and unlocks the next one
-  immediately, whatever your main-game level is.
+  whenever you want. It never locks the tier, but a wrong one costs points —
+  the price rises with how many letters you've already confirmed, so a wild
+  guess with no clues is cheap and a near-certain one costs close to what
+  the tier is worth. The List stays free either way, so score only leaves
+  your pocket when you choose to gamble.
+- Solving a tier banks `50 × level` points, explains the word (same as
+  after any level), and unlocks the next tier immediately, whatever your
+  main-game level is.
 - Resets with every new run, same as score, hints and skips.
 
 Nothing in it is invented: every word on offer is one you genuinely won, so
