@@ -272,8 +272,8 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
               <!-- Stessa icona del badge "Seen" nel gioco principale: prepara
                    il terreno al quiz, che scatterà proprio su queste. -->
               <svg
-                v-if="entry.wasReview"
                 class="wordle__icon"
+                :class="{ 'vault__seen-icon--hidden': !entry.wasReview }"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -408,6 +408,13 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
   width: 1.05em;
   height: 1.05em;
   flex-shrink: 0;
+}
+
+/* `visibility: hidden` invece di `v-if`: la icona sparisce alla vista ma
+   resta nel flusso, così ogni parola della lista occupa lo stesso spazio e
+   il testo parte sempre dallo stesso punto, vista o non vista. */
+.vault__seen-icon--hidden {
+  visibility: hidden;
 }
 
 /* Back e List riusano la stessa classe dei bottoni Vault/Hint del gioco
