@@ -295,6 +295,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
               type="button"
               @click="chooseSolved(entry.word)"
             >
+              {{ entry.word }}
               <!-- Stessa icona del badge "Seen" nel gioco principale: prepara
                    il terreno al quiz, che scatterà proprio su queste. -->
               <svg
@@ -311,7 +312,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
                 <path d="M20.5 14a8.5 8.5 0 1 1-1.9-8.4" />
                 <polyline points="20.5 3.5 20.5 9 15 9" />
               </svg>
-              {{ entry.word }}
             </button>
           </li>
         </ul>
@@ -547,6 +547,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
 .vault__word {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.35rem;
   box-sizing: border-box;
   width: 100%;
