@@ -73,9 +73,9 @@ level too:
 
 | Hint | Reveals | Price |
 | --- | --- | --- |
-| Letter | One letter of the word you haven't tried yet | 3 × level |
-| Sentence | The example sentence, with the word blanked out | 6 × level |
-| Definition | What the word means | 12 × level |
+| Letter | One letter of the word you haven't tried yet | 5 × level |
+| Sentence | The example sentence, with the word blanked out | 7 × level |
+| Definition | What the word means | 13 × level |
 
 **Skips** give up on the word entirely — you get a new one, and you never find
 out what it was worth. You get **3 per run**, and each one costs more than the
@@ -107,7 +107,7 @@ unlocked (A1–A2, then +B1, +B2, all bands), cracked with words you've
   guess with no clues is cheap and a near-certain one costs close to what
   the tier is worth. The List stays free either way, so score only leaves
   your pocket when you choose to gamble.
-- Solving a tier banks `50 × level` points, explains the word (same as
+- Solving a tier banks `70 × level` points, explains the word (same as
   after any level), and unlocks the next tier immediately, whatever your
   main-game level is.
 - Resets with every new run, same as score, hints and skips.

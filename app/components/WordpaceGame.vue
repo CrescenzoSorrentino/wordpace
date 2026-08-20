@@ -30,6 +30,7 @@ import {
   keyStatesFor,
   evaluationsCountPosition,
   costForVaultGuess,
+  vaultTierLevel,
   type LetterState,
   type HintSize,
 } from "#shared/wordle";
@@ -341,7 +342,7 @@ const hintOptions = computed(() =>
 // compri la vittoria — deve costare quanto vale).
 const vaultGuessCost = computed(() => {
   const confirmed = evaluationsCountPosition(vaultEvaluations.value);
-  const cost = costForVaultGuess(level.value, confirmed);
+  const cost = costForVaultGuess(vaultTierLevel(vaultTier.value), confirmed);
   return { cost, affordable: score.value >= cost };
 });
 
@@ -994,7 +995,7 @@ function submitVaultGuess(word: string, isFreeGuess: boolean) {
     // Incassati subito, come wordScore() nel gioco principale: prima della
     // spiegazione, non dopo, altrimenti il punteggio in HUD resterebbe
     // fermo mentre leggi come se non avessi appena vinto nulla.
-    score.value += 50 * level.value;
+    score.value += 70 * vaultTierLevel(vaultTier.value);
     vaultWonWord.value = word;
   } else if (isFreeGuess) {
     score.value -= cost;

@@ -50,14 +50,18 @@ export type HintSize = "small" | "medium" | "large";
 // livello (vedi wordScore nel componente).
 //
 // I valori sono tarati sul livello 3-4, dove finisce la maggior parte delle
-// partite: lì l'aiuto grande costa circa un quarto del punteggio accumulato —
-// si sente, ma non azzera la partita — e il piccolo poco abbastanza da restare
-// una scelta leggera. Più si sale, più diventano proporzionalmente economici,
-// perché il punteggio cresce a valanga e il costo cresce dritto: accettabile,
-// dato che ai livelli alti le parole sono anche più difficili.
-export const HINT_COST_SMALL = 3;
-export const HINT_COST_MEDIUM = 6;
-export const HINT_COST_LARGE = 12;
+// partite: lì l'aiuto grande costa circa la metà di una parola tipica — si
+// sente, ma non azzera la partita. Il piccolo era stato messo troppo basso
+// (12% di una parola): rivelare una lettera senza bisogno di conoscere
+// l'inglese finiva per garantire quasi sempre la vittoria a un prezzo
+// simbolico, così è stato alzato di più degli altri due — che restano più a
+// buon mercato perché chiedono comunque di capire la frase o la definizione.
+// Più si sale, più diventano proporzionalmente economici, perché il
+// punteggio cresce a valanga e il costo cresce dritto: accettabile, dato che
+// ai livelli alti le parole sono anche più difficili.
+export const HINT_COST_SMALL = 5;
+export const HINT_COST_MEDIUM = 7;
+export const HINT_COST_LARGE = 13;
 
 // Quando compare l'opzione dell'aiuto. Bastano una delle due condizioni: sono
 // due segnali di difficoltà diversi, e chi è bloccato con tempo in abbondanza
@@ -79,7 +83,7 @@ export const MAX_SKIPS = 3;
 /**
  * Costo del PRIMO skip, in punti per livello, come per gli aiuti.
  *
- * Vale poco meno dell'aiuto grande (12) di proposito: la definizione di solito
+ * Vale poco meno dell'aiuto grande (13) di proposito: la definizione di solito
  * fa risolvere la parola, e quindi restituisce i punti che quella parola vale.
  * Lo skip invece non restituisce niente. Se costasse molto meno diventerebbe la
  * scorciatoia pigra da comprare al posto di pensare.
@@ -113,10 +117,10 @@ const HINT_COSTS: Record<HintSize, number> = {
 };
 
 // Prezzo base del tentativo libero nel Vault, in punti per livello, come per
-// gli aiuti — stesso valore dell'aiuto grande (HINT_COST_LARGE), visto che
-// qui si compra qualcosa di altrettanto prezioso: un tentativo che, se
-// giusto, chiude un intero tier.
-const VAULT_GUESS_COST = 12;
+// gli aiuti — leggermente sopra l'aiuto grande (HINT_COST_LARGE), perché qui
+// si sta comprando qualcosa di ancora più prezioso: un tentativo che, se
+// giusto, chiude un intero tier e ne incassa il premio.
+const VAULT_GUESS_COST = 15;
 
 /**
  * L'esito di una singola lettera di un tentativo:
@@ -187,6 +191,8 @@ const REVIEW_CHANCE = 0.25;
 const A1_A2_POOL = A1_A2_WORDS;
 const B1_POOL = [...A1_A2_WORDS, ...B1_WORDS];
 const B2_POOL = [...A1_A2_WORDS, ...B1_WORDS, ...B2_WORDS];
+
+const tierLevels = [1, B1_FROM_LEVEL, B2_FROM_LEVEL, C1_C2_FROM_LEVEL];
 
 /**
  * Le parole in gioco a un dato livello.
@@ -287,6 +293,24 @@ export function vaultWordForTier(tier: number): string {
   const pool = pools[tier]!;
   const index = Math.floor(Math.random() * pool.length);
   return pool[index]!;
+}
+
+/**
+ * Livello "congelato" di un tier del Vault (0-3), usato al posto del livello
+ * vero della partita per calcolare sia il prezzo del tentativo libero sia il
+ * premio di vittoria.
+ *
+ * Senza questo, converrebbe sempre rimandare il Vault a fine partita: le
+ * stesse parole già risolte si provano gratis dalla lista comunque, ma il
+ * premio moltiplicato per un livello molto più alto varrebbe molto di più.
+ * Congelando il livello alla soglia in cui quella fascia CEFR si sblocca
+ * (vedi B1_FROM_LEVEL e affini), un tier vale sempre lo stesso, che tu lo
+ * chiuda subito o lo lasci in sospeso per venti livelli.
+ */
+export function vaultTierLevel(tier: number): number {
+  const levels = tierLevels;
+  const level = levels[tier]!;
+  return level;
 }
 
 /**
@@ -494,9 +518,7 @@ export function keyStatesFor(
  * `costForVaultGuess` per far costare di più un tentativo quanto più è
  * vicino alla certezza.
  */
-export function evaluationsCountPosition(
-  evaluations: LetterState[][],
-): number {
+export function evaluationsCountPosition(evaluations: LetterState[][]): number {
   const confirmed = [false, false, false, false, false];
   for (let r = 0; r < evaluations.length; r++) {
     const row = evaluations[r]!;
