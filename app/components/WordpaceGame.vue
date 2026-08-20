@@ -107,6 +107,10 @@ const vaultWord = ref("");
 const vaultTierClosed = ref(false);
 const vaultGuesses = ref<string[]>([]);
 const vaultEvaluations = ref<LetterState[][]>([]);
+// La parola appena indovinata nel Vault, mentre se ne spiega il significato —
+// null quando non c'è nulla da spiegare. Il tier avanza solo quando questa
+// torna a null (bottone "Continue" nel pannello), non subito alla vittoria.
+const vaultWonWord = ref<string | null>(null);
 
 // Le parole vinte in partita, usate come tentativi contro il Vault (vedi la
 // roadmap). wordsSeen non basta perché contiene anche le parole PERSE, e
@@ -191,7 +195,9 @@ let englishVoice: SpeechSynthesisVoice | undefined;
  * tastiera a schermo. Priorità: correct > present > absent — una lettera
  * diventata verde non deve mai retrocedere visivamente a gialla.
  */
-const keyStates = computed(() => keyStatesFor(guesses.value, evaluations.value));
+const keyStates = computed(() =>
+  keyStatesFor(guesses.value, evaluations.value),
+);
 
 /** Il nome ripulito del giocatore, per evidenziare la sua riga in classifica. */
 const myNick = computed(() => sanitizeNickname(nick.value));
@@ -338,6 +344,15 @@ const hintOptions = computed(() =>
  */
 const canBuyAnyHint = computed(() =>
   hintOptions.value.some((option) => !option.bought && option.affordable),
+);
+
+/**
+ * Se c'è almeno una parola risolta da provare contro il Vault, e il tier
+ * corrente non è già chiuso — stesso ruolo di canBuyAnyHint, per accendere
+ * l'icona del Vault invece che quella degli aiuti.
+ */
+const vaultHasAttempt = computed(
+  () => solvedWords.value.length > 0 && !vaultTierClosed.value,
 );
 
 const hintAvailable = computed(
@@ -930,13 +945,13 @@ function newRun() {
   vaultGuesses.value = [];
   vaultEvaluations.value = [];
   vaultTierClosed.value = false;
+  vaultWonWord.value = null;
   grantLevelTime();
   loadWord();
 }
 
-/** Tier del Vault indovinato: punti bonus e passaggio al tier successivo. */
+/** Passaggio al tier successivo del Vault (il punteggio è già incassato). */
 function advanceVaultTier() {
-  score.value += 50 * level.value;
   if (vaultTier.value >= 3) return;
   vaultTier.value++;
   vaultWord.value = vaultWordForTier(vaultTier.value);
@@ -945,9 +960,17 @@ function advanceVaultTier() {
   vaultTierClosed.value = false;
 }
 
+/** Chiude la spiegazione del Vault e passa davvero al tier successivo. */
+function continueVaultTier() {
+  vaultWonWord.value = null;
+  if (!vaultTierClosed.value) {
+    advanceVaultTier();
+  }
+}
+
 /** Registra un tentativo contro il Vault e lo toglie dalle parole ancora disponibili. */
 function submitVaultGuess(word: string, isFreeGuess: boolean) {
-  if (vaultTierClosed.value) return; 
+  if (vaultTierClosed.value) return;
   const colors = evaluateGuess(word, vaultWord.value);
   vaultGuesses.value.push(word);
   vaultEvaluations.value.push(colors);
@@ -955,10 +978,15 @@ function submitVaultGuess(word: string, isFreeGuess: boolean) {
     (solved) => solved.word !== word,
   );
   if (word === vaultWord.value) {
-    advanceVaultTier();
+    // Incassati subito, come wordScore() nel gioco principale: prima della
+    // spiegazione, non dopo, altrimenti il punteggio in HUD resterebbe
+    // fermo mentre leggi come se non avessi appena vinto nulla.
+    score.value += 50 * level.value;
+    vaultWonWord.value = word;
   }
   if (word !== vaultWord.value && isFreeGuess) {
     vaultTierClosed.value = true;
+    vaultWonWord.value = vaultWord.value;
   }
 }
 
@@ -1163,14 +1191,19 @@ onBeforeUnmount(() => {
         <div class="wordle__side-col wordle__side-col--right">
           <button
             class="wordle__hint-open"
+            :class="{ 'wordle__hint-open--lit': vaultHasAttempt }"
             type="button"
-            aria-label="Open the Vault"
+            :aria-label="
+              vaultHasAttempt ? 'Open the Vault — a guess is ready' : 'Open the Vault'
+            "
             @click="vaultPanelOpen = true"
           >
             <!-- Un portellone da caveau (cerchio, ghiera centrale, quattro
                  perni) invece di un lucchetto: quello si legge come "chiuso",
                  mentre il bottone è sempre cliccabile. Stessa idea delle altre
-                 icone: disegnata, non un'emoji, eredita il colore del testo. -->
+                 icone: disegnata, non un'emoji, eredita il colore del testo.
+                 La ghiera si accende (stessa classe --lit della lampadina
+                 degli aiuti) quando c'è una parola pronta da provare. -->
             <svg
               class="wordle__icon"
               viewBox="0 0 24 24"
@@ -1182,7 +1215,7 @@ onBeforeUnmount(() => {
               aria-hidden="true"
             >
               <circle cx="12" cy="12" r="9" />
-              <circle cx="12" cy="12" r="3" />
+              <circle cx="12" cy="12" r="3" class="wordle__icon-dial" />
               <path d="M12 3v2M12 19v2M3 12h2M19 12h2" />
             </svg>
             Vault
@@ -1317,8 +1350,8 @@ onBeforeUnmount(() => {
                  tenerlo per un livello più avanti, quando le parole sono più
                  dure. E il rincaro del prossimo si legge già qui. -->
             <p class="wordle__skip-note">
-              {{ skipsLeft === 1 ? "1 skip left" : `${skipsLeft} skips left` }} in
-              this run · no points for a skipped word
+              {{ skipsLeft === 1 ? "1 skip left" : `${skipsLeft} skips left` }}
+              in this run · no points for a skipped word
             </p>
           </div>
 
@@ -1399,7 +1432,9 @@ onBeforeUnmount(() => {
             "
             class="wordle__definition-meta"
           >
-            <span v-if="currentDefinition.pos">{{ currentDefinition.pos }}</span>
+            <span v-if="currentDefinition.pos">{{
+              currentDefinition.pos
+            }}</span>
             <span v-if="currentDefinition.ipa" class="wordle__definition-ipa">
               {{ currentDefinition.ipa }}
             </span>
@@ -1426,7 +1461,11 @@ onBeforeUnmount(() => {
             “{{ currentDefinition.example }}”
           </p>
 
-          <button class="wordle__again" type="button" @click="finishExplanation">
+          <button
+            class="wordle__again"
+            type="button"
+            @click="finishExplanation"
+          >
             Continue
           </button>
         </div>
@@ -1544,8 +1583,10 @@ onBeforeUnmount(() => {
       :evaluations="vaultEvaluations"
       :closed="vaultTierClosed"
       :solved-words="solvedWords"
+      :won-word="vaultWonWord"
       @guess="submitVaultGuess"
       @close="vaultPanelOpen = false"
+      @continue="continueVaultTier"
     />
   </section>
 </template>
@@ -1714,6 +1755,17 @@ onBeforeUnmount(() => {
 }
 
 .wordle__hint-open--lit .wordle__icon-bulb {
+  fill: var(--wg-present);
+}
+
+/* Stessa accensione, sulla ghiera del caveau invece che sulla lampadina:
+   c'è almeno una parola risolta pronta da provare contro il Vault. */
+.wordle__icon-dial {
+  fill: none;
+  transition: fill 0.25s ease;
+}
+
+.wordle__hint-open--lit .wordle__icon-dial {
   fill: var(--wg-present);
 }
 

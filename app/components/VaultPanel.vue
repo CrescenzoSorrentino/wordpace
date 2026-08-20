@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   isValidWord,
   keyStatesFor,
@@ -7,6 +7,7 @@ import {
   WORD_LENGTH,
   type LetterState,
 } from "#shared/wordle";
+import { MISSING_DEFINITION, type WordEntry } from "#shared/definitions";
 
 const props = defineProps<{
   tier: number;
@@ -15,11 +16,13 @@ const props = defineProps<{
   evaluations: LetterState[][];
   closed: boolean;
   solvedWords: { word: string; wasReview: boolean }[];
+  wonWord: string | null;
 }>();
 
 const emit = defineEmits<{
   guess: [word: string, isFree: boolean];
   close: [];
+  continue: [];
 }>();
 
 // Stato di sola interfaccia: cosa c'è scritto finora nel tentativo libero
@@ -30,6 +33,29 @@ const emit = defineEmits<{
 const freeGuess = ref("");
 const error = ref("");
 const listOpen = ref(false);
+
+// La definizione della parola appena vinta, mostrata mentre `wonWord` non è
+// null. Suo scarico proprio, non quello del gioco principale: qui la parola
+// è `wonWord`, non `answer`.
+const definition = ref<WordEntry>(MISSING_DEFINITION);
+
+async function fetchDefinition(word: string) {
+  definition.value = MISSING_DEFINITION;
+  try {
+    definition.value = await $fetch<WordEntry>("/api/definition", {
+      query: { word },
+    });
+  } catch (e) {
+    console.error("Could not load definition:", e);
+  }
+}
+
+watch(
+  () => props.wonWord,
+  (word) => {
+    if (word) fetchDefinition(word);
+  },
+);
 
 // Stessa forma di `board` nel gioco principale, e stessa griglia fissa
 // (WORD_LENGTH × MAX_ATTEMPTS): righe per i tentativi già inviati, poi la
@@ -295,6 +321,53 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
         </button>
       </div>
     </div>
+
+    <!-- Spiegazione della parola vinta: stessa finestra del gioco principale,
+         senza barra del tempo (qui non c'è fretta) e senza pulsante audio
+         (per ora). Blocca il resto finché non premi Continue, esattamente
+         come le altre finestre di questo tipo. -->
+    <div v-if="wonWord" class="wordle__overlay">
+      <div
+        class="wordle__result"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Word explanation"
+      >
+        <p class="wordle__result-label">The word was</p>
+        <h2 class="wordle__result-title">{{ wonWord.toUpperCase() }}</h2>
+
+        <p
+          v-if="definition.pos || definition.ipa || definition.cefr"
+          class="wordle__definition-meta"
+        >
+          <span v-if="definition.pos">{{ definition.pos }}</span>
+          <span v-if="definition.ipa" class="wordle__definition-ipa">
+            {{ definition.ipa }}
+          </span>
+          <span
+            v-if="definition.cefr"
+            class="wordle__definition-level"
+            :class="`wordle__definition-level--${definition.cefr[0]!.toLowerCase()}`"
+          >
+            {{ definition.cefr }}
+          </span>
+        </p>
+
+        <p class="wordle__definition wordle__definition--en">
+          {{ definition.en }}
+        </p>
+        <p
+          v-if="definition.example"
+          class="wordle__definition wordle__definition--example"
+        >
+          “{{ definition.example }}”
+        </p>
+
+        <button class="wordle__again" type="button" @click="emit('continue')">
+          Continue
+        </button>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -554,6 +627,79 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+  color: var(--wg-dim);
+}
+
+/* Spiegazione della parola vinta: stessa regole del gioco principale,
+   duplicate qui per lo stesso motivo di sempre (stili scoped). */
+.wordle__result-title {
+  margin: 0;
+  font-size: 2.1rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.wordle__definition {
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  text-wrap: pretty;
+}
+
+.wordle__definition-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: -0.4rem 0 0;
+  font-size: 0.85rem;
+  color: var(--wg-dim);
+}
+
+.wordle__definition-ipa {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.82rem;
+}
+
+.wordle__definition-level {
+  padding: 0.15rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #ffffff;
+  background: var(--wg-absent);
+}
+
+.wordle__definition-level--a {
+  background: var(--wg-correct);
+}
+
+.wordle__definition-level--b {
+  background: var(--wg-present);
+  color: #ffffff;
+}
+
+.wordle__definition--en {
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--wg-border);
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+.wordle__definition--example {
+  padding: 0.7rem 0.85rem;
+  border-left: 3px solid var(--wg-correct);
+  border-radius: 0 var(--wg-radius) var(--wg-radius) 0;
+  background: var(--wg-surface);
+  font-size: 0.95rem;
+  font-style: italic;
+  line-height: 1.45;
   color: var(--wg-dim);
 }
 
