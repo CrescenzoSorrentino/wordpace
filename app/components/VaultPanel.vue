@@ -1,0 +1,561 @@
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import {
+  isValidWord,
+  keyStatesFor,
+  MAX_ATTEMPTS,
+  WORD_LENGTH,
+  type LetterState,
+} from "#shared/wordle";
+
+const props = defineProps<{
+  tier: number;
+  score: number;
+  guesses: string[];
+  evaluations: LetterState[][];
+  closed: boolean;
+  solvedWords: string[];
+}>();
+
+const emit = defineEmits<{
+  guess: [word: string, isFree: boolean];
+  close: [];
+}>();
+
+// Stato di sola interfaccia: cosa c'è scritto finora nel tentativo libero
+// (una lettera alla volta, come `currentGuess` nel gioco principale — ma è
+// tutta sua, non tocca lo stato del gioco), ed è sempre attivo (non più un
+// interruttore lista/tastiera): la tastiera sta fissa sotto la griglia, e la
+// lista si apre a parte, in un popup.
+const freeGuess = ref("");
+const error = ref("");
+const listOpen = ref(false);
+
+// Stessa forma di `board` nel gioco principale, e stessa griglia fissa
+// (WORD_LENGTH × MAX_ATTEMPTS): righe per i tentativi già inviati, poi la
+// riga attiva (finché il tier non è chiuso), poi tutte le righe restanti
+// vuote, così la griglia ha sempre lo stesso aspetto della home invece di
+// crescere e restringersi con ogni tentativo.
+const board = computed(() => {
+  const rows: { letter: string; state: LetterState | "empty" | "filled" }[][] =
+    [];
+
+  for (let r = 0; r < MAX_ATTEMPTS; r++) {
+    const cells: { letter: string; state: LetterState | "empty" | "filled" }[] =
+      [];
+
+    const submitted = r < props.guesses.length;
+    const isActiveRow = r === props.guesses.length && !props.closed;
+
+    for (let c = 0; c < WORD_LENGTH; c++) {
+      if (submitted) {
+        cells.push({
+          letter: props.guesses[r]![c]!,
+          state: props.evaluations[r]![c]!,
+        });
+      } else if (isActiveRow && c < freeGuess.value.length) {
+        cells.push({ letter: freeGuess.value[c]!, state: "filled" });
+      } else {
+        cells.push({ letter: "", state: "empty" });
+      }
+    }
+
+    rows.push(cells);
+  }
+
+  return rows;
+});
+
+// Riusa la stessa funzione pura del gioco principale, sui tentativi di
+// questo tier invece che su quelli della parola in corso.
+const keyStates = computed(() => keyStatesFor(props.guesses, props.evaluations));
+
+// Per il badge "Unlocked": a differenza del numero in HUD (che è il tier
+// grezzo), qui si mostra la fascia CEFR che quel tier sblocca — segue il
+// tier corrente, non il livello della partita principale.
+const TIER_LABELS = ["A1-A2", "+B1", "+B2", "All levels"];
+const unlockedLabel = computed(() => TIER_LABELS[props.tier]);
+
+function chooseSolved(word: string) {
+  error.value = "";
+  emit("guess", word, false);
+  listOpen.value = false;
+}
+
+/** Smista un tasto (lettera, invio o cancella) per il tentativo libero. */
+function handleKey(key: string) {
+  if (key === "enter") {
+    submitFree();
+  } else if (key === "back") {
+    freeGuess.value = freeGuess.value.slice(0, -1);
+  } else if (/^[a-z]$/.test(key) && freeGuess.value.length < WORD_LENGTH) {
+    freeGuess.value += key;
+  }
+}
+
+function submitFree() {
+  const word = freeGuess.value.trim().toLowerCase();
+  if (word.length < WORD_LENGTH) {
+    error.value = "Not enough letters";
+    return;
+  }
+  if (!isValidWord(word)) {
+    error.value = "Not in word list";
+    return;
+  }
+  error.value = "";
+  emit("guess", word, true);
+  freeGuess.value = "";
+}
+
+/**
+ * Tastiera fisica: Escape chiude il popup della lista se è aperto; altrimenti
+ * scrive nel tentativo libero, a meno che il tier non sia chiuso. Il
+ * genitore, con questo pannello aperto, non fa già più nulla con i tasti (si
+ * ferma all'Escape) quindi qui si può ascoltare senza conflitti.
+ */
+function onPhysicalKey(event: KeyboardEvent) {
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+  if (listOpen.value) {
+    if (event.key === "Escape") listOpen.value = false;
+    return;
+  }
+
+  if (props.closed) return;
+
+  if (event.key === "Enter") {
+    handleKey("enter");
+  } else if (event.key === "Backspace") {
+    handleKey("back");
+  } else {
+    handleKey(event.key.toLowerCase());
+  }
+}
+
+onMounted(() => window.addEventListener("keydown", onPhysicalKey));
+onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
+</script>
+
+<template>
+  <!-- Stessa schermata del gioco principale (HUD, riga di stato, griglia):
+       qui "Time" è sempre infinito, perché il Vault non consuma tempo — il
+       genitore ferma davvero l'orologio mentre questo pannello è aperto. -->
+  <section class="wordle" aria-label="Vault">
+    <div class="wordle__hud">
+      <div class="wordle__stat">
+        <span class="wordle__stat-label">Tier</span>
+        <span class="wordle__stat-value">{{ tier + 1 }}</span>
+      </div>
+      <div class="wordle__stat">
+        <span class="wordle__stat-label">Time</span>
+        <span class="wordle__stat-value">∞</span>
+      </div>
+      <div class="wordle__stat">
+        <span class="wordle__stat-label">Score</span>
+        <span class="wordle__stat-value">{{ score }}</span>
+      </div>
+    </div>
+
+    <!-- Stessa griglia a tre colonne del gioco principale: Unlocked a
+         sinistra, i due bottoni impilati a destra, stessa classe (non solo
+         stile simile). -->
+    <div class="wordle__side-by-side">
+      <div class="wordle__side-col">
+        <!-- "Unlocked" tolto per non farsi stretto su mobile, stessa scelta
+             del gioco principale: un lucchetto aperto porta lo stesso
+             significato in un'icona. -->
+        <p class="wordle__badge" aria-label="Unlocked">
+          <svg
+            class="wordle__icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="5" y="11" width="14" height="9" rx="1.5" />
+            <path d="M8 11V7a4 4 0 0 1 7.5-2" />
+          </svg>
+          <span class="wordle__badge-value">{{ unlockedLabel }}</span>
+        </p>
+      </div>
+
+      <div class="wordle__side-col wordle__side-col--right">
+        <button class="wordle__hint-open" type="button" @click="emit('close')">
+          <svg
+            class="wordle__icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M15 5l-7 7 7 7" />
+          </svg>
+          Back
+        </button>
+
+        <button
+          v-if="!closed"
+          class="wordle__hint-open"
+          type="button"
+          @click="listOpen = true"
+        >
+          <svg
+            class="wordle__icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M4 6h16M4 12h16M4 18h9" />
+          </svg>
+          List
+        </button>
+      </div>
+    </div>
+
+    <div class="wordle__status-row">
+      <p class="wordle__message" role="status" aria-live="polite">
+        {{ error || (closed ? "This tier is locked" : "") }}
+      </p>
+    </div>
+
+    <GameBoard :rows="board" />
+
+    <p v-if="closed" class="vault__closed">
+      Wrong guess on the free attempt — this tier is locked for the rest of
+      the run.
+    </p>
+
+    <!-- La tastiera resta fissa sotto la griglia: scrivere il tentativo
+         libero è sempre l'azione di base, la lista è un'opzione a parte.
+         Stessa lingua della didascalia sopra gli aiuti: un avviso scritto,
+         non un blocco — chi ha già capito la regola non perde tempo. -->
+    <template v-else>
+      <p class="vault__keyboard-warning">
+        One shot only — a wrong guess locks this tier for good.<br />
+        Try a word from the List first.
+      </p>
+      <OnScreenKeyboard :key-states="keyStates" @key="handleKey" />
+    </template>
+
+    <!-- Popup della lista: le parole già risolte, scelte una alla volta come
+         tentativo — stessa finestra usata dagli aiuti nel gioco principale. -->
+    <div v-if="listOpen" class="wordle__overlay">
+      <div
+        class="wordle__result"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Solved words"
+      >
+        <p class="wordle__result-label">Pick a solved word</p>
+
+        <p v-if="solvedWords.length === 0" class="vault__list-empty">
+          No solved words yet — win one in the game to try it here.
+        </p>
+        <ul v-else class="vault__list">
+          <li v-for="word in solvedWords" :key="word">
+            <button
+              class="vault__word"
+              type="button"
+              @click="chooseSolved(word)"
+            >
+              {{ word }}
+            </button>
+          </li>
+        </ul>
+
+        <button class="wordle__again" type="button" @click="listOpen = false">
+          Close
+        </button>
+      </div>
+    </div>
+  </section>
+</template>
+
+<style scoped>
+/* Stessa struttura di .wordle in WordpaceGame.vue (flex, gap, larghezza
+   massima) — nel flusso normale della pagina, non sopra a tutto: deve
+   restare sotto il link "Wordpace" della pagina, esattamente dove sta la
+   schermata di gioco che sostituisce. Le variabili --wg-* le eredita dal
+   vero .wordle nel DOM (sono proprietà CSS, non classi): qui bastano le
+   proprietà di LAYOUT, che non si ereditano da sole. */
+.wordle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.1rem;
+  width: 100%;
+  max-width: 30rem;
+  color: var(--wg-text);
+}
+
+.wordle__hud {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  width: 100%;
+  border-radius: var(--wg-radius);
+  background: var(--wg-surface);
+  overflow: hidden;
+}
+
+.wordle__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.6rem 0.4rem;
+}
+
+.wordle__stat + .wordle__stat {
+  box-shadow: inset 1px 0 0 var(--wg-border);
+}
+
+.wordle__stat-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--wg-dim);
+}
+
+.wordle__stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* Stessa griglia a tre colonne dell'HUD qui sopra, stesso accorgimento del
+   gioco principale per l'avvicinamento all'HUD (margine negativo): parlano
+   della stessa cosa — a che punto è il Vault — e due blocchi imparentati
+   vicini si leggono come uno. */
+.wordle__side-by-side {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 4.4rem;
+  margin-top: -0.6rem;
+}
+
+.wordle__side-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.wordle__side-col--right {
+  /* `grid-column: 3` esplicito: senza, con la colonna 2 vuota (qui non c'è
+     mai un "Seen before"), questo blocco scivolerebbe nella colonna 2 e
+     sembrerebbe spostato verso il centro. */
+  align-items: stretch;
+  justify-self: end;
+  grid-column: 3;
+}
+
+.wordle__badge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--wg-dim);
+}
+
+.wordle__badge-label {
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+.wordle__badge-value {
+  font-size: 0.78rem;
+  color: var(--wg-text);
+}
+
+/* Senza dimensione esplicita un SVG inline prende la misura di default del
+   browser (enorme rispetto al testo del bottone): stessa regola del gioco
+   principale, duplicata per lo stesso motivo di sempre. */
+.wordle__icon {
+  width: 1.05em;
+  height: 1.05em;
+  flex-shrink: 0;
+}
+
+/* Back e List riusano la stessa classe dei bottoni Vault/Hint del gioco
+   principale (`.wordle__hint-open`), duplicata qui perché lo stile "scoped"
+   di Vue non passa da un componente all'altro da solo. */
+.wordle__hint-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.3rem;
+  padding: 0.3rem 0.6rem;
+  border: none;
+  border-radius: var(--wg-radius);
+  background: var(--wg-border);
+  color: var(--wg-text);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.wordle__hint-open:hover {
+  filter: brightness(0.94);
+}
+
+.wordle__hint-open:active {
+  transform: translateY(1px);
+}
+
+.wordle__status-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 2rem;
+}
+
+.wordle__message {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+/* Una lista vera, stesso linguaggio della classifica del gioco principale
+   (`wordle__scores`): righe intere una sotto l'altra, non pillole in fila. */
+.vault__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.vault__word {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border: none;
+  border-radius: var(--wg-radius);
+  background: var(--wg-surface);
+  color: var(--wg-text);
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vault__word:hover {
+  filter: brightness(0.96);
+}
+
+.vault__word:active {
+  transform: translateY(1px);
+}
+
+.vault__list-empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--wg-dim);
+}
+
+.vault__closed {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--wg-urgent);
+  text-align: center;
+}
+
+.vault__keyboard-warning {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--wg-dim);
+  text-align: center;
+}
+
+/* Stessa finestra usata dagli aiuti e dal Game Over nel gioco principale,
+   duplicata qui per lo stesso motivo di sempre (stili scoped). */
+.wordle__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(26, 26, 26, 0.55);
+}
+
+.wordle__result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: 24rem;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 1.75rem 1.5rem 1.5rem;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+.wordle__result-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--wg-dim);
+}
+
+/* Bottone che chiude il popup: stessa classe usata per aiuti, spiegazione e
+   Game Over nel gioco principale — a tutta larghezza, non una pillola. */
+.wordle__again {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 0.25rem;
+  padding: 0.85rem 1.4rem;
+  border: none;
+  border-radius: var(--wg-radius);
+  background: var(--wg-correct);
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.wordle__again:hover {
+  filter: brightness(0.93);
+}
+
+.wordle__again:active {
+  transform: translateY(1px);
+}
+</style>

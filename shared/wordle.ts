@@ -433,3 +433,34 @@ export function pickUntriedLetter(
 export function maskWordInExample(example: string, word: string): string {
   return example.replace(new RegExp(word, "gi"), "_".repeat(word.length));
 }
+
+/**
+ * Il colore più alto raggiunto finora da ogni lettera usata, per colorare la
+ * tastiera a schermo. Priorità: correct > present > absent — una lettera
+ * diventata verde non deve mai retrocedere visivamente a gialla.
+ */
+export function keyStatesFor(
+  guesses: string[],
+  evaluations: LetterState[][],
+): Record<string, LetterState> {
+  const rank: Record<LetterState, number> = {
+    absent: 0,
+    present: 1,
+    correct: 2,
+  };
+  const map: Record<string, LetterState> = {};
+
+  guesses.forEach((guess, row) => {
+    const states = evaluations[row]!;
+    for (let i = 0; i < guess.length; i++) {
+      const letter = guess[i]!;
+      const next = states[i]!;
+      // Sostituisce il colore solo se quello nuovo vale di più.
+      if (map[letter] === undefined || rank[next] > rank[map[letter]!]) {
+        map[letter] = next;
+      }
+    }
+  });
+
+  return map;
+}
