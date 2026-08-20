@@ -14,7 +14,7 @@ const props = defineProps<{
   guesses: string[];
   evaluations: LetterState[][];
   closed: boolean;
-  solvedWords: string[];
+  solvedWords: { word: string; wasReview: boolean }[];
 }>();
 
 const emit = defineEmits<{
@@ -263,13 +263,29 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
           No solved words yet — win one in the game to try it here.
         </p>
         <ul v-else class="vault__list">
-          <li v-for="word in solvedWords" :key="word">
+          <li v-for="entry in solvedWords" :key="entry.word">
             <button
               class="vault__word"
               type="button"
-              @click="chooseSolved(word)"
+              @click="chooseSolved(entry.word)"
             >
-              {{ word }}
+              <!-- Stessa icona del badge "Seen" nel gioco principale: prepara
+                   il terreno al quiz, che scatterà proprio su queste. -->
+              <svg
+                v-if="entry.wasReview"
+                class="wordle__icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20.5 14a8.5 8.5 0 1 1-1.9-8.4" />
+                <polyline points="20.5 3.5 20.5 9 15 9" />
+              </svg>
+              {{ entry.word }}
             </button>
           </li>
         </ul>
@@ -449,7 +465,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
 }
 
 .vault__word {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   box-sizing: border-box;
   width: 100%;
   padding: 0.5rem 0.7rem;

@@ -110,8 +110,11 @@ const vaultEvaluations = ref<LetterState[][]>([]);
 
 // Le parole vinte in partita, usate come tentativi contro il Vault (vedi la
 // roadmap). wordsSeen non basta perché contiene anche le parole PERSE, e
-// questa deve contenere solo quelle vinte davvero.
-const solvedWords = ref<string[]>([]);
+// questa deve contenere solo quelle vinte davvero. `wasReview` viaggia con
+// la parola (non solo la stringa) perché il Vault deve poter mostrare quali,
+// nella lista, erano già state incontrate prima — lo stesso dato che servirà
+// al quiz "conosci il significato?" quando lo costruiremo.
+const solvedWords = ref<{ word: string; wasReview: boolean }[]>([]);
 
 /**
  * Perché l'ultimo salvataggio è fallito, o stringa vuota se non è fallito.
@@ -823,7 +826,7 @@ function submitGuess() {
   // incassano SUBITO, prima che la griglia venga azzerata: wordScore() conta i
   // tentativi usati, e fra venti secondi quel dato non ci sarà più.
   if (guess === answer.value) {
-    solvedWords.value.push(answer.value);
+    solvedWords.value.push({ word: answer.value, wasReview: isReview.value });
     score.value += wordScore();
     startExplanation("next-level");
   } else if (guesses.value.length >= MAX_ATTEMPTS || timeLeft.value <= 0) {
@@ -948,7 +951,9 @@ function submitVaultGuess(word: string, isFreeGuess: boolean) {
   const colors = evaluateGuess(word, vaultWord.value);
   vaultGuesses.value.push(word);
   vaultEvaluations.value.push(colors);
-  solvedWords.value = solvedWords.value.filter((solved) => solved !== word);
+  solvedWords.value = solvedWords.value.filter(
+    (solved) => solved.word !== word,
+  );
   if (word === vaultWord.value) {
     advanceVaultTier();
   }
@@ -1152,7 +1157,7 @@ onBeforeUnmount(() => {
             <path d="M20.5 14a8.5 8.5 0 1 1-1.9-8.4" />
             <polyline points="20.5 3.5 20.5 9 15 9" />
           </svg>
-          <span>Seen before</span>
+          <span>Seen</span>
         </p>
 
         <div class="wordle__side-col wordle__side-col--right">
