@@ -91,6 +91,28 @@ is exactly when the button looks like a way out, you changed word and died
 anyway, poorer by the points. Runs end on time, so that was the one moment a
 player had no lever at all.
 
+## The Vault
+
+A second board, open any time via the **Vault** button — free, no time or
+points cost. It's a ladder of four hidden words, one per CEFR band you've
+unlocked (A1–A2, then +B1, +B2, all bands), cracked with words you've
+**already solved** in the current run rather than ones typed cold.
+
+- Pick any solved word from the **List** and try it against the Vault's secret
+  word — colored exactly like a normal guess. A wrong try costs nothing; a
+  word leaves the list only once you've tried it.
+- You can also **type a guess freely** with the same on-screen keyboard,
+  whenever you want — but it's a single shot: get it wrong and that tier
+  locks for the rest of the run (the other tiers stay open if already
+  unlocked).
+- Solving a tier banks `50 × level` points and unlocks the next one
+  immediately, whatever your main-game level is.
+- Resets with every new run, same as score, hints and skips.
+
+Nothing in it is invented: every word on offer is one you genuinely won, so
+the Vault stays the same game seen from a second angle, not a bolted-on
+mini-game.
+
 ## Scoring
 
 Per solved word: `(10 + unusedAttempts * 5) * level` — faster solves and higher
@@ -148,25 +170,28 @@ levels are worth more.
   answer (~148 KB).
 
 ```
-app/pages/index.vue             home: the pitch, Play, your records, the board
-app/pages/play.vue              the game page, deliberately bare
-app/utils/stats.ts              personal records, kept in localStorage
-app/utils/share.ts              the text of a shared run
-app/components/WordpaceGame.vue  the game (state, board, keyboard, timer, UI)
-shared/wordle.ts                pure rules: evaluate, validate, timer formula
-shared/words/answer-words.ts    the answers, split into four CEFR bands
-shared/words/cefr-levels.json   the CEFR level of every answer (server-side)
-shared/words/valid-words.ts     every word accepted as a guess
-shared/definitions.ts           dictionary lookup, with a never-throwing fallback
-shared/words/definitions.ts     2,315 generated entries (do not edit by hand)
-shared/leaderboard.ts           leaderboard rules shared by client and server
-server/utils/leaderboard.ts     the Redis key of the current month's board
-server/api/definition.get.ts    one dictionary entry, by word
-server/api/leaderboard.get.ts   read the top 10
-server/api/leaderboard.post.ts  save a score (validated + rate limited)
-server/api/telemetry.post.ts    log one line per finished run
-scripts/analyze-runs.mjs        read the recorded runs (npm run runs)
-scripts/                        dictionary generation + validation (see below)
+app/pages/index.vue                  home: the pitch, Play, your records, the board
+app/pages/play.vue                   the game page, deliberately bare
+app/utils/stats.ts                   personal records, kept in localStorage
+app/utils/share.ts                   the text of a shared run
+app/components/WordpaceGame.vue      the game (state, timer, UI) and the Vault's own state
+app/components/GameBoard.vue         the letter grid, shared by the game and the Vault
+app/components/OnScreenKeyboard.vue  the on-screen keyboard, shared by the game and the Vault
+app/components/VaultPanel.vue        the Vault screen (reads its state as props)
+shared/wordle.ts                     pure rules: evaluate, validate, timer formula
+shared/words/answer-words.ts         the answers, split into four CEFR bands
+shared/words/cefr-levels.json        the CEFR level of every answer (server-side)
+shared/words/valid-words.ts          every word accepted as a guess
+shared/definitions.ts                dictionary lookup, with a never-throwing fallback
+shared/words/definitions.ts          2,315 generated entries (do not edit by hand)
+shared/leaderboard.ts                leaderboard rules shared by client and server
+server/utils/leaderboard.ts          the Redis key of the current month's board
+server/api/definition.get.ts         one dictionary entry, by word
+server/api/leaderboard.get.ts        read the top 10
+server/api/leaderboard.post.ts       save a score (validated + rate limited)
+server/api/telemetry.post.ts         log one line per finished run
+scripts/analyze-runs.mjs             read the recorded runs (npm run runs)
+scripts/                             dictionary generation + validation (see below)
 ```
 
 ## Local development
