@@ -17,6 +17,7 @@ const props = defineProps<{
   solvedWords: { word: string; wasReview: boolean }[];
   wonWord: string | null;
   guessCost: { cost: number; affordable: boolean };
+  timeLeft: string;
 }>();
 
 const emit = defineEmits<{
@@ -167,8 +168,8 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
 
 <template>
   <!-- Stessa schermata del gioco principale (HUD, riga di stato, griglia):
-       qui "Time" è sempre infinito, perché il Vault non consuma tempo — il
-       genitore ferma davvero l'orologio mentre questo pannello è aperto. -->
+       qui "Time" mostra lo stesso timeLeft del gioco principale, che il
+       genitore ferma solo mentre leggi la spiegazione di una vittoria. -->
   <section class="wordle" aria-label="Vault">
     <div class="wordle__hud">
       <div class="wordle__stat">
@@ -177,7 +178,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
       </div>
       <div class="wordle__stat">
         <span class="wordle__stat-label">Time</span>
-        <span class="wordle__stat-value">∞</span>
+        <span class="wordle__stat-value">{{ timeLeft }}</span>
       </div>
       <div class="wordle__stat">
         <span class="wordle__stat-label">Score</span>

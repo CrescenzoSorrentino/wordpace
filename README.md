@@ -93,8 +93,10 @@ player had no lever at all.
 
 ## The Vault
 
-A second board, open any time via the **Vault** button — free, no time or
-points cost. It's a ladder of four hidden words, one per CEFR band you've
+A second board, open any time via the **Vault** button. The run clock keeps
+ticking while you're in there — it's not a free timeout, just like buying a
+hint isn't — and only pauses while you're reading the explanation of a word
+you just won. It's a ladder of four hidden words, one per CEFR band you've
 unlocked (A1–A2, then +B1, +B2, all bands), cracked with words you've
 **already solved** in the current run rather than ones typed cold.
 
@@ -107,9 +109,13 @@ unlocked (A1–A2, then +B1, +B2, all bands), cracked with words you've
   guess with no clues is cheap and a near-certain one costs close to what
   the tier is worth. The List stays free either way, so score only leaves
   your pocket when you choose to gamble.
-- Solving a tier banks `70 × level` points, explains the word (same as
-  after any level), and unlocks the next tier immediately, whatever your
-  main-game level is.
+- Both that price and the tier's win bonus (`70 × level`) are pegged to the
+  level each CEFR band unlocks at in the main game (1, 3, 5, 8) — not your
+  actual live level. A tier is worth exactly the same whether you crack it
+  the moment it opens or leave it sitting for twenty levels, so there's no
+  payoff in stalling the Vault to cash in everything at once.
+- Solving a tier explains the word (same as after any level) and unlocks the
+  next tier immediately, whatever your main-game level is.
 - Resets with every new run, same as score, hints and skips.
 
 Nothing in it is invented: every word on offer is one you genuinely won, so

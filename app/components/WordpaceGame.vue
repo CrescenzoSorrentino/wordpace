@@ -797,6 +797,7 @@ function startCountdown() {
   countdownTimer = setInterval(() => {
     timeLeft.value--;
     if (timeLeft.value <= 0) {
+      vaultPanelOpen.value = false;
       deathCause.value = "time";
       startExplanation("game-over");
     }
@@ -1075,12 +1076,12 @@ watch([status, hintPanelOpen], ([current, hintsOpen]) => {
   document.body.style.overflow = covered ? "hidden" : "";
 });
 
-// Il Vault è gratis anche nel tempo, non solo nei punti: a differenza degli
-// aiuti (che NON fermano l'orologio, apposta), qui il conto alla rovescia si
-// ferma davvero mentre il pannello è aperto, e riparte da dove era rimasto
-// alla chiusura — coerente con l'infinito mostrato lì dentro.
-watch(vaultPanelOpen, (open) => {
-  if (open) {
+// Il tempo scorre anche dentro il Vault, come per gli aiuti: aprirlo non è
+// più una pausa gratuita. Si ferma solo mentre leggi la spiegazione della
+// parola appena vinta (vaultWonWord pieno), esattamente come tra un livello e
+// l'altro nel gioco principale — non mentre stai ancora indovinando.
+watch(vaultWonWord, (reading) => {
+  if (reading) {
     stopTimer();
   } else if (status.value === "playing") {
     startCountdown();
@@ -1598,6 +1599,7 @@ onBeforeUnmount(() => {
       :solved-words="solvedWords"
       :won-word="vaultWonWord"
       :guess-cost="vaultGuessCost"
+      :time-left="timeDisplay"
       @guess="submitVaultGuess"
       @close="vaultPanelOpen = false"
       @continue="continueVaultTier"
