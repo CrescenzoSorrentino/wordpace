@@ -23,7 +23,8 @@ const CAUSES = ["time", "attempts"] as const;
 
 /**
  * POST /api/telemetry
- * body: { level, score, cause, hints: HintSize[], skips }
+ * body: { level, score, cause, hints: HintSize[], skips, vaultTier,
+ *         vaultOpened, vaultNetScore, vaultPaidGuesses }
  *
  * Registra una partita finita, per sapere se il gioco è tarato bene: a che
  * livello ci si ferma davvero, se si perde per tempo o per tentativi, quali

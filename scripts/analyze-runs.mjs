@@ -32,6 +32,9 @@ const byLevel8 = runs.filter((run) => run.level >= 8).length;
 // numero (`skips: 1`) e si confronta diretto.
 const byHint = runs.filter((run) => run.hints.length > 0).length;
 const bySkip = runs.filter((run) => run.skips > 0).length;
+const vaultOpened = runs.filter((run) => run.vaultOpened).length;
+const vaultTier = runs.filter((run) => run.vaultTier > 0).length;
+const vaultPaidGuesses = runs.filter((run) => run.vaultPaidGuesses >= 1).length;
 
 const timePercent = Math.round((byTime / runs.length) * 100);
 const attemptsPercent = Math.round((byAttempts / runs.length) * 100);
@@ -40,6 +43,10 @@ const level5Percent = Math.round((byLevel5 / runs.length) * 100);
 const level8Percent = Math.round((byLevel8 / runs.length) * 100);
 const hintPercent = Math.round((byHint / runs.length) * 100);
 const skipPercent = Math.round((bySkip / runs.length) * 100);
+const vaultOpenedPercent = Math.round((vaultOpened / runs.length) * 100);
+const vaultTierPercent = Math.round((vaultTier / runs.length) * 100);
+const vaultPaidGuessesPercent = Math.round((vaultPaidGuesses / runs.length) * 100);
+
 
 console.log(`Runs: ${runs.length}`);
 console.log(`Ended by time: ${byTime} (${timePercent}%)`);
@@ -49,3 +56,6 @@ console.log(`Reached level 5+ (B2 words): ${byLevel5} (${level5Percent}%)`);
 console.log(`Reached level 8+ (C1-C2 words): ${byLevel8} (${level8Percent}%)`);
 console.log(`Bought a hint: ${byHint} (${hintPercent}%)`);
 console.log(`Used a skip: ${bySkip} (${skipPercent}%)`);
+console.log(`Opened the Vault: ${vaultOpened} (${vaultOpenedPercent}%)`);
+console.log(`Won at least one Vault tier: ${vaultTier} (${vaultTierPercent}%)`);
+console.log(`Made a paid Vault guess: ${vaultPaidGuesses} (${vaultPaidGuessesPercent}%)`);

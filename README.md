@@ -148,14 +148,16 @@ levels are worth more.
   interval constant however much you play. It needs no extra stored data, since
   the saved word list is already in first-met order.
 - Every finished run logs **one line** — level reached, score, whether time or
-  guesses ended it, which hints were bought, how many skips — kept as a Redis
-  list capped at the last thousand. It exists because the game had been tuned
-  on one player's impressions: the level thresholds for the CEFR bands assume
-  most runs end around level 3-4, and that was an estimate nobody had measured.
-  The call is not awaited and swallows its own failure — a run that cannot be
-  logged must cost the player nothing. `npm run runs` reads those lines back
-  and prints how runs end, how many ever reach the levels where each band
-  opens, and whether hints and skips get bought at all. The level counts are
+  guesses ended it, which hints were bought, how many skips, and whether the
+  Vault was ever opened, how far it got, and its net points and paid guesses —
+  kept as a Redis list capped at the last thousand. It exists because the game
+  had been tuned on one player's impressions: the level thresholds for the
+  CEFR bands assume most runs end around level 3-4, and that was an estimate
+  nobody had measured. The call is not awaited and swallows its own failure —
+  a run that cannot be logged must cost the player nothing. `npm run runs`
+  reads those lines back and prints how runs end, how many ever reach the
+  levels where each band opens, whether hints and skips get bought at all, and
+  whether the Vault gets opened, won, or gambled on. The level counts are
   cumulative on purpose: "how many reach level 3" is the question the band
   design rests on.
 - A review word is worth the same as any other. Scoring is

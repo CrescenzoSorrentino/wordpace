@@ -113,6 +113,9 @@ const vaultEvaluations = ref<LetterState[][]>([]);
 // null quando non c'è nulla da spiegare. Il tier avanza solo quando questa
 // torna a null (bottone "Continue" nel pannello), non subito alla vittoria.
 const vaultWonWord = ref<string | null>(null);
+const vaultOpened = ref(false);
+const vaultNetScore = ref(0);
+const vaultPaidGuesses = ref(0);
 
 // Le parole vinte in partita, usate come tentativi contro il Vault (vedi la
 // roadmap). wordsSeen non basta perché contiene anche le parole PERSE, e
@@ -681,6 +684,10 @@ function reportRun() {
       cause: deathCause.value,
       skips: skipsUsed.value,
       hints: runHints.value,
+      vaultTier: vaultTier.value,
+      vaultOpened: vaultOpened.value,
+      vaultNetScore: vaultNetScore.value,
+      vaultPaidGuesses: vaultPaidGuesses.value,
     },
   }).catch((e) => console.error("Could not report run:", e));
 }
@@ -955,6 +962,9 @@ function newRun() {
   vaultGuesses.value = [];
   vaultEvaluations.value = [];
   vaultWonWord.value = null;
+  vaultOpened.value = false;
+  vaultNetScore.value = 0;
+  vaultPaidGuesses.value = 0;
   grantLevelTime();
   loadWord();
 }
@@ -993,15 +1003,27 @@ function submitVaultGuess(word: string, isFreeGuess: boolean) {
     (solved) => solved.word !== word,
   );
   if (word === vaultWord.value) {
+    if (isFreeGuess) {
+      vaultPaidGuesses.value++;
+    }
     // Incassati subito, come wordScore() nel gioco principale: prima della
     // spiegazione, non dopo, altrimenti il punteggio in HUD resterebbe
     // fermo mentre leggi come se non avessi appena vinto nulla.
     score.value += 70 * vaultTierLevel(vaultTier.value);
+    vaultNetScore.value += 70 * vaultTierLevel(vaultTier.value);
     vaultWonWord.value = word;
   } else if (isFreeGuess) {
     score.value -= cost;
+    vaultNetScore.value -= cost;
+    vaultPaidGuesses.value++;
   }
 }
+
+watch(vaultPanelOpen, (open) => {
+  if (open) {
+    vaultOpened.value = true;
+  }
+});
 
 /** Parola indovinata: si sale di un livello e si carica la parola successiva. */
 function nextLevel() {
