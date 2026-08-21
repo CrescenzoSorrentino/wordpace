@@ -1,23 +1,3 @@
-<script setup lang="ts">
-import type { LetterState } from "#shared/wordle";
-
-defineProps<{
-  keyStates: Record<string, LetterState>;
-}>();
-
-const emit = defineEmits<{
-  key: [key: string];
-}>();
-
-// Disposizione della tastiera a schermo. "enter" e "back" sono i due tasti
-// azione, tutto il resto sono lettere.
-const KEYBOARD_ROWS: string[][] = [
-  ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
-  ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
-  ["enter", "z", "x", "c", "v", "b", "n", "m", "back"],
-];
-</script>
-
 <template>
   <div class="wordle__keyboard" aria-label="Keyboard">
     <div
@@ -48,18 +28,38 @@ const KEYBOARD_ROWS: string[][] = [
   </div>
 </template>
 
+<script setup lang="ts">
+import type { LetterState } from "#shared/wordle";
+
+defineProps<{
+  keyStates: Record<string, LetterState>;
+}>();
+
+const emit = defineEmits<{
+  key: [key: string];
+}>();
+
+// Disposizione della tastiera a schermo. "enter" e "back" sono i due tasti
+// azione, tutto il resto sono lettere.
+const KEYBOARD_ROWS: string[][] = [
+  ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+  ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
+  ["enter", "z", "x", "c", "v", "b", "n", "m", "back"],
+];
+</script>
+
 <style scoped>
 .wordle__keyboard {
   display: flex;
   flex-direction: column;
-  gap: var(--wg-gap);
+  gap: var(--space-gap);
   width: 100%;
 }
 
 .wordle__keyboard-row {
   display: flex;
   justify-content: center;
-  gap: var(--wg-gap);
+  gap: var(--space-gap);
 }
 
 .wordle__key {
@@ -70,9 +70,9 @@ const KEYBOARD_ROWS: string[][] = [
   min-width: 0;
   height: 3.5rem;
   border: none;
-  border-radius: var(--wg-radius);
-  background: var(--wg-border);
-  color: var(--wg-text);
+  border-radius: var(--radius-base);
+  background: var(--color-border);
+  color: var(--color-text);
   font: inherit;
   font-size: 0.95rem;
   font-weight: 700;
@@ -100,17 +100,17 @@ const KEYBOARD_ROWS: string[][] = [
 
 /* Colori delle lettere già usate, stessa tavolozza della griglia. */
 .wordle__key--correct {
-  background: var(--wg-correct);
+  background: var(--color-correct);
   color: #ffffff;
 }
 
 .wordle__key--present {
-  background: var(--wg-present);
+  background: var(--color-present);
   color: #ffffff;
 }
 
 .wordle__key--absent {
-  background: var(--wg-absent);
+  background: var(--color-absent);
   color: #ffffff;
 }
 

@@ -1,0 +1,18 @@
+/* Design tokens centralizzati. Generato da scripts/apply-conventions.mjs
+   a partire dai valori prima duplicati in WordpaceGame.vue e index.vue. */
+:root {
+  --color-text: #1a1a1a;
+  --color-text-dim: #6e7275;
+  --color-border: #d3d6da;
+  --color-border-filled: #878a8c;
+  --color-surface: #f6f7f8;
+  --color-correct: #5f9e58;
+  --color-present: #ab8f3a;
+  --color-absent: #787c7e;
+  --color-urgent: #d0342c;
+
+  --space-gap: 5px;
+  --space-col: 26rem;
+
+  --radius-base: 4px;
+}

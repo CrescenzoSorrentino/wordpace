@@ -1,3 +1,504 @@
+<template>
+  <section class="wordle" aria-label="Wordpace game">
+    <!-- Con il Vault aperto, l'intera schermata di gioco (qui sotto) lascia
+         il posto a VaultPanel invece di restarci sotto: sono due schermate
+         alternative, non una sopra l'altra (deciso così, per restare nello
+         stesso punto della pagina — sotto al link "Wordpace" che riporta
+         al menu — invece di coprire tutto come fanno le finestre modali
+         qui sotto). -->
+    <template v-if="!vaultPanelOpen">
+      <div class="wordle__hud">
+        <div class="wordle__stat">
+          <span class="wordle__stat-label">Level</span>
+          <span class="wordle__stat-value">{{ level }}</span>
+        </div>
+        <div
+          class="wordle__stat"
+          :class="{
+            'wordle__stat--urgent': status === 'playing' && timeLeft <= 15,
+          }"
+        >
+          <span class="wordle__stat-label">Time</span>
+          <span class="wordle__stat-value">{{ timeDisplay }}</span>
+        </div>
+        <div class="wordle__stat">
+          <span class="wordle__stat-label">Score</span>
+          <span class="wordle__stat-value">{{ score }}</span>
+        </div>
+      </div>
+
+      <!-- Le due cose che il gioco faceva senza dirle. Le fasce di vocabolario e
+           il ripescaggio esistevano solo nella logica: chi giocava vedeva un
+           clone del gioco delle cinque lettere con una definizione in fondo.
+
+           In una riga loro e non dentro le celle dell'HUD: là sotto un numero
+           starebbe un testo lungo il doppio, la cella crescerebbe e deciderebbe
+           l'altezza di tutta la fila. L'altezza è fissa e riservata anche quando
+           il secondo badge non c'è, per lo stesso motivo per cui lo è la riga del
+           messaggio qui sotto: comparendo, non deve spostare la griglia mentre
+           qualcuno sta digitando. -->
+      <!-- Una riga sola, allineata al centro verticalmente (il bottone Vault è
+           più alto della semplice scritta "Unlocked", quindi senza centrare si
+           vedrebbero scalini): "Unlocked" a sinistra, "Seen before" (quando
+           c'è) in mezzo, Vault/Hint impilati a destra. -->
+      <div class="wordle__side-by-side">
+        <div class="wordle__side-col">
+          <!-- "Unlocked" tolto per non farsi stretto su mobile: un lucchetto
+               APERTO (il contrario di quello scartato per il Vault, dove
+               significava "chiuso" per sbaglio) porta lo stesso significato
+               in un'icona invece che in una parola. -->
+          <p class="wordle__badge" aria-label="Unlocked">
+            <svg
+              class="wordle__icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="5" y="11" width="14" height="9" rx="1.5" />
+              <path d="M8 11V7a4 4 0 0 1 7.5-2" />
+            </svg>
+            <span class="wordle__badge-value">{{ unlockedBand }}</span>
+          </p>
+        </div>
+
+        <!-- Niente verde o giallo: nel gioco quei due colori dicono "lettera
+             giusta" e "lettera fuori posto", e usarli qui come decorazione
+             presterebbe un significato che questo badge non ha.
+
+             L'icona è disegnata e non un'emoji, per la stessa ragione scritta
+             sopra il pulsante degli aiuti: un SVG eredita `currentColor` e sta
+             nella tavolozza del gioco, mentre un'emoji la disegna il sistema
+             operativo — a colori pieni, diversa su ogni telefono. -->
+        <p v-if="isReview" class="wordle__badge wordle__badge--review">
+          <svg
+            class="wordle__icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M20.5 14a8.5 8.5 0 1 1-1.9-8.4" />
+            <polyline points="20.5 3.5 20.5 9 15 9" />
+          </svg>
+          <span>Seen</span>
+        </p>
+
+        <div class="wordle__side-col wordle__side-col--right">
+          <button
+            class="wordle__hint-open"
+            :class="{ 'wordle__hint-open--lit': vaultHasAttempt }"
+            type="button"
+            :aria-label="
+              vaultHasAttempt
+                ? 'Open the Vault — a guess is ready'
+                : 'Open the Vault'
+            "
+            @click="vaultPanelOpen = true"
+          >
+            <!-- Un portellone da caveau (cerchio, ghiera centrale, quattro
+                 perni) invece di un lucchetto: quello si legge come "chiuso",
+                 mentre il bottone è sempre cliccabile. Stessa idea delle altre
+                 icone: disegnata, non un'emoji, eredita il colore del testo.
+                 La ghiera si accende (stessa classe --lit della lampadina
+                 degli aiuti) quando c'è una parola pronta da provare. -->
+            <svg
+              class="wordle__icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <circle cx="12" cy="12" r="3" class="wordle__icon-dial" />
+              <path d="M12 3v2M12 19v2M3 12h2M19 12h2" />
+            </svg>
+            Vault
+          </button>
+
+          <button
+            v-if="hintAvailable"
+            class="wordle__hint-open"
+            :class="{ 'wordle__hint-open--lit': canBuyAnyHint }"
+            type="button"
+            :aria-label="
+              canBuyAnyHint ? 'Open hints — one is available' : 'Open hints'
+            "
+            @click="hintPanelOpen = true"
+          >
+            <!-- Icona disegnata qui e non un'emoji: un SVG eredita
+                 `currentColor`, quindi si spegne insieme al pulsante ed è
+                 identico su ogni sistema. Un'emoji la disegna il sistema
+                 operativo, sempre a colori pieni. -->
+            <svg
+              class="wordle__icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path
+                class="wordle__icon-bulb"
+                d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"
+              />
+              <path d="M9.5 20h5" />
+            </svg>
+            Hint
+          </button>
+        </div>
+      </div>
+
+      <!-- Riga di servizio: solo il messaggio, ora che i bottoni sono saliti
+           nella coppia di colonne qui sopra. Resta un'altezza fissa e riservata
+           per lo stesso motivo di sempre: comparendo, non deve spostare la
+           griglia mentre qualcuno sta digitando. -->
+      <div class="wordle__status-row">
+        <!-- aria-live fa sì che i lettori di schermo annuncino il messaggio. -->
+        <p class="wordle__message" role="status" aria-live="polite">
+          {{ message }}
+        </p>
+      </div>
+
+      <GameBoard :rows="board" />
+
+      <!-- Aiuti: una finestra e non un pannello dentro la pagina. Su uno schermo
+           da telefono il gioco occupa già tutta l'altezza disponibile, e un
+           blocco che cresce a ogni acquisto spingeva la tastiera fuori schermo.
+           Una finestra sopra il gioco non toglie spazio a nulla, e riusa un
+           linguaggio che il giocatore conosce già (spiegazione, fine partita). -->
+      <div v-if="hintPanelOpen" class="wordle__overlay">
+        <div
+          class="wordle__result"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Hints"
+        >
+          <div class="wordle__block">
+            <p class="wordle__result-label">Need a hint?</p>
+            <p class="wordle__hints-intro">
+              Each one costs points. The clock keeps running.
+            </p>
+          </div>
+
+          <div class="wordle__hints-row">
+            <button
+              v-for="option in hintOptions"
+              :key="option.size"
+              class="wordle__hint"
+              type="button"
+              :disabled="option.bought || !option.affordable"
+              :title="
+                option.bought
+                  ? 'Already bought'
+                  : option.affordable
+                    ? `Costs ${option.cost} points`
+                    : 'Not enough points'
+              "
+              @click="buyHint(option.size)"
+            >
+              <span class="wordle__hint-label">{{ option.label }}</span>
+              <span class="wordle__hint-cost">−{{ option.cost }}</span>
+            </button>
+          </div>
+
+          <!-- Gli aiuti comprati restano per tutta la parola: sono stati pagati,
+               e riaprire la finestra per rileggerli non deve costare un secondo
+               acquisto. Ognuno porta il nome dell'aiuto da cui viene, altrimenti
+               comprandone due non si capisce quale testo risponde a cosa. -->
+          <div
+            v-for="hint in boughtHints"
+            :key="hint.size"
+            class="wordle__hint-box"
+          >
+            <p class="wordle__label">{{ HINT_LABELS[hint.size] }}</p>
+            <p class="wordle__hint-text">{{ hint.text }}</p>
+          </div>
+
+          <!-- Lo skip sta qui perché la domanda è la stessa degli aiuti ("sono
+               bloccato, cosa posso fare?") e la moneta pure. Ma è staccato dai
+               tre e in fondo, non in fila con loro: è l'unica scelta di questa
+               finestra che non si può disfare, e un dito che sbaglia pulsante
+               deve poter sbagliare solo fra tre acquisti innocui. -->
+          <div class="wordle__skip">
+            <button
+              class="wordle__skip-button"
+              type="button"
+              :disabled="!canSkip"
+              :title="
+                skipsLeft === 0
+                  ? 'No skips left in this run'
+                  : canSkip
+                    ? `Costs ${skipCost} points — the word is lost`
+                    : 'Not enough points'
+              "
+              @click="skipWord"
+            >
+              <span class="wordle__skip-label">Skip this word</span>
+              <span class="wordle__skip-cost">−{{ skipCost }}</span>
+            </button>
+
+            <!-- Il prezzo da solo non basta a decidere: senza sapere quanti ne
+                 restano, il giocatore non può capire se conviene spenderlo ora o
+                 tenerlo per un livello più avanti, quando le parole sono più
+                 dure. E il rincaro del prossimo si legge già qui. -->
+            <p class="wordle__skip-note">
+              {{ skipsLeft === 1 ? "1 skip left" : `${skipsLeft} skips left` }}
+              in this run · no points for a skipped word
+            </p>
+          </div>
+
+          <button
+            class="wordle__again"
+            type="button"
+            @click="hintPanelOpen = false"
+          >
+            Back to the game
+          </button>
+        </div>
+      </div>
+
+      <!-- Spiegazione: finestra che appare fra un livello e l'altro (e prima del
+           Game Over), col significato della parola appena giocata. Il pulsante
+           chiama la stessa funzione dello scadere dei secondi: la anticipa. -->
+      <div v-if="status === 'explaining'" class="wordle__overlay">
+        <div
+          class="wordle__result"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Word explanation"
+        >
+          <!-- Barra che si svuota: dice quanto manca senza costringere a leggere
+               un numero mentre si sta già leggendo la definizione. -->
+          <div
+            class="wordle__progress"
+            role="progressbar"
+            aria-label="Time left to read"
+            :aria-valuenow="explanationTimeLeft"
+            :aria-valuemax="EXPLANATION_TIME"
+          >
+            <div
+              class="wordle__progress-bar"
+              :style="{ width: explanationProgress }"
+            />
+          </div>
+
+          <p class="wordle__result-label">The word was</p>
+
+          <!-- Il lemma e il suo pulsante audio stanno insieme: è lì che uno
+               cerca il modo di sentire come si pronuncia. -->
+          <div class="wordle__headword">
+            <h2 class="wordle__result-title">{{ answer.toUpperCase() }}</h2>
+            <!-- La voce di sistema è la pronuncia autorevole; l'IPA è l'aiuto
+                 visivo. Se i due divergono, ha ragione l'audio. -->
+            <button
+              class="wordle__speak"
+              type="button"
+              :aria-label="`Listen to the pronunciation of ${answer}`"
+              @click="speakWord"
+            >
+              <svg
+                class="wordle__icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M11 5 6 9H2v6h4l5 4V5z" />
+                <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+                <path d="M19 5a9 9 0 0 1 0 14" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Riga dei dati brevi: categoria, pronuncia e quanto vale la pena
+               impararla. Ogni pezzo compare solo se c'è, così una parola non
+               ancora generata mostra solo il testo di ripiego. -->
+          <p
+            v-if="
+              currentDefinition.pos ||
+              currentDefinition.ipa ||
+              currentDefinition.cefr
+            "
+            class="wordle__definition-meta"
+          >
+            <span v-if="currentDefinition.pos">{{
+              currentDefinition.pos
+            }}</span>
+            <span v-if="currentDefinition.ipa" class="wordle__definition-ipa">
+              {{ currentDefinition.ipa }}
+            </span>
+            <!-- Il livello di corso a cui si impara la parola, non la sua
+                 frequenza: "B2" chi studia inglese lo può confrontare col proprio
+                 livello, "uncommon" no. La classe si ricava dalla prima lettera
+                 (A, B o C), così bastano tre colori per sei livelli. -->
+            <span
+              v-if="currentDefinition.cefr"
+              class="wordle__definition-level"
+              :class="`wordle__definition-level--${currentDefinition.cefr[0]!.toLowerCase()}`"
+            >
+              {{ currentDefinition.cefr }}
+            </span>
+          </p>
+
+          <p class="wordle__definition wordle__definition--en">
+            {{ currentDefinition.en }}
+          </p>
+          <p
+            v-if="currentDefinition.example"
+            class="wordle__definition wordle__definition--example"
+          >
+            “{{ currentDefinition.example }}”
+          </p>
+
+          <button
+            class="wordle__again"
+            type="button"
+            @click="finishExplanation"
+          >
+            Continue
+          </button>
+        </div>
+      </div>
+
+      <!-- Game Over: finestra modale che appare a partita finita. -->
+      <div v-if="status === 'lost'" class="wordle__overlay">
+        <div
+          class="wordle__result"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Game over"
+        >
+          <!-- A fine partita la domanda del giocatore è una sola: "quanto ho
+               fatto?". Il punteggio è quindi il pezzo grande; il resto lo
+               accompagna. -->
+          <p class="wordle__result-label">Game over</p>
+          <p class="wordle__result-score">{{ score }}</p>
+          <p class="wordle__result-stats">
+            Points · Reached level <strong>{{ level }}</strong>
+          </p>
+          <p class="wordle__result-text">
+            Stopped by <strong>{{ answer.toUpperCase() }}</strong>
+          </p>
+
+          <!-- Richiesta del nome: solo se il punteggio è entrato nei primi 10 e non
+             è ancora stato salvato. -->
+          <form
+            v-if="qualifies && !scoreSubmitted"
+            class="wordle__nickname"
+            @submit.prevent="submitScore"
+          >
+            <label class="wordle__nickname-label" for="nick">
+              Top {{ LEADERBOARD_SIZE }} this month! Enter your name:
+            </label>
+            <input
+              id="nick"
+              class="wordle__nickname-input"
+              v-model="nick"
+              :maxlength="NICKNAME_MAX_LENGTH"
+              autocomplete="off"
+            />
+            <button class="wordle__again" type="submit">Save</button>
+
+            <!-- role="alert" non è decorativo: fa annunciare il messaggio dai
+                 lettori di schermo appena compare. Chi non vede il modulo si
+                 accorgerebbe altrimenti solo del fatto che non succede nulla. -->
+            <p v-if="submitError" class="wordle__nickname-error" role="alert">
+              {{ submitError }}
+            </p>
+          </form>
+
+          <!-- La classifica. Il titolo dice "this month" perché
+               la lista riparte da zero ogni mese: senza, chi vede dieci punteggi
+               più alti del suo pensa di essere fuori per sempre, invece che fino
+               al primo del mese. È anche l'unico posto in cui il giocatore può
+               accorgersi che esiste una scadenza. -->
+          <div v-if="leaderboard.length" class="wordle__block">
+            <p class="wordle__label">Best this month</p>
+            <ol class="wordle__scores">
+              <li
+                v-for="(entry, i) in leaderboard"
+                :key="i"
+                class="wordle__scores-row"
+                :class="{
+                  'wordle__scores-row--me':
+                    scoreSubmitted &&
+                    entry.nick === myNick &&
+                    entry.score === score,
+                }"
+              >
+                <span class="wordle__scores-rank">{{ i + 1 }}</span>
+                <span class="wordle__scores-nick">{{ entry.nick }}</span>
+                <span class="wordle__scores-score">{{ entry.score }}</span>
+              </li>
+            </ol>
+          </div>
+
+          <button class="wordle__again" type="button" @click="newRun">
+            Play again
+          </button>
+
+          <!-- Secondario di proposito, sotto e col solo contorno: dopo una
+               partita la cosa che il giocatore vuole per prima è rigiocare, e
+               questo non deve competere col tasto verde.
+
+               L'etichetta cambia al posto di mostrare un messaggio a parte: né
+               gli appunti né il pannello di condivisione lasciano una traccia
+               visibile, e la conferma deve comparire dove è appena avvenuto il
+               clic, non altrove nella finestra. -->
+          <button
+            class="wordle__share"
+            type="button"
+            :disabled="shareState !== 'idle'"
+            @click="shareResult"
+          >
+            <template v-if="shareState === 'done'">Copied!</template>
+            <template v-else-if="shareState === 'failed'">
+              Couldn't copy
+            </template>
+            <template v-else>Share result</template>
+          </button>
+        </div>
+      </div>
+
+      <!-- Tastiera a schermo: l'unico modo per scrivere su un dispositivo touch. -->
+      <OnScreenKeyboard :key-states="keyStates" @key="handleKey" />
+    </template>
+
+    <VaultPanel
+      v-else
+      :tier="vaultTier"
+      :score="score"
+      :guesses="vaultGuesses"
+      :evaluations="vaultEvaluations"
+      :solved-words="solvedWords"
+      :won-word="vaultWonWord"
+      :lost-word="vaultLostWord"
+      :guess-cost="vaultGuessCost"
+      :time-left="timeDisplay"
+      :explanation-time-left="vaultExplanationTimeLeft"
+      :explanation-progress="vaultExplanationProgress"
+      @guess="submitVaultGuess"
+      @close="vaultPanelOpen = false"
+      @continue="finishVaultExplanation"
+    />
+  </section>
+</template>
+
 <script setup lang="ts">
 /**
  * Wordpace — il gioco intero: la griglia, le due tastiere (fisica e a
@@ -1191,518 +1692,10 @@ onBeforeUnmount(() => {
 });
 </script>
 
-<template>
-  <section class="wordle" aria-label="Wordpace game">
-    <!-- Con il Vault aperto, l'intera schermata di gioco (qui sotto) lascia
-         il posto a VaultPanel invece di restarci sotto: sono due schermate
-         alternative, non una sopra l'altra (deciso così, per restare nello
-         stesso punto della pagina — sotto al link "Wordpace" che riporta
-         al menu — invece di coprire tutto come fanno le finestre modali
-         qui sotto). -->
-    <template v-if="!vaultPanelOpen">
-      <div class="wordle__hud">
-        <div class="wordle__stat">
-          <span class="wordle__stat-label">Level</span>
-          <span class="wordle__stat-value">{{ level }}</span>
-        </div>
-        <div
-          class="wordle__stat"
-          :class="{
-            'wordle__stat--urgent': status === 'playing' && timeLeft <= 15,
-          }"
-        >
-          <span class="wordle__stat-label">Time</span>
-          <span class="wordle__stat-value">{{ timeDisplay }}</span>
-        </div>
-        <div class="wordle__stat">
-          <span class="wordle__stat-label">Score</span>
-          <span class="wordle__stat-value">{{ score }}</span>
-        </div>
-      </div>
-
-      <!-- Le due cose che il gioco faceva senza dirle. Le fasce di vocabolario e
-           il ripescaggio esistevano solo nella logica: chi giocava vedeva un
-           clone del gioco delle cinque lettere con una definizione in fondo.
-
-           In una riga loro e non dentro le celle dell'HUD: là sotto un numero
-           starebbe un testo lungo il doppio, la cella crescerebbe e deciderebbe
-           l'altezza di tutta la fila. L'altezza è fissa e riservata anche quando
-           il secondo badge non c'è, per lo stesso motivo per cui lo è la riga del
-           messaggio qui sotto: comparendo, non deve spostare la griglia mentre
-           qualcuno sta digitando. -->
-      <!-- Una riga sola, allineata al centro verticalmente (il bottone Vault è
-           più alto della semplice scritta "Unlocked", quindi senza centrare si
-           vedrebbero scalini): "Unlocked" a sinistra, "Seen before" (quando
-           c'è) in mezzo, Vault/Hint impilati a destra. -->
-      <div class="wordle__side-by-side">
-        <div class="wordle__side-col">
-          <!-- "Unlocked" tolto per non farsi stretto su mobile: un lucchetto
-               APERTO (il contrario di quello scartato per il Vault, dove
-               significava "chiuso" per sbaglio) porta lo stesso significato
-               in un'icona invece che in una parola. -->
-          <p class="wordle__badge" aria-label="Unlocked">
-            <svg
-              class="wordle__icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <rect x="5" y="11" width="14" height="9" rx="1.5" />
-              <path d="M8 11V7a4 4 0 0 1 7.5-2" />
-            </svg>
-            <span class="wordle__badge-value">{{ unlockedBand }}</span>
-          </p>
-        </div>
-
-        <!-- Niente verde o giallo: nel gioco quei due colori dicono "lettera
-             giusta" e "lettera fuori posto", e usarli qui come decorazione
-             presterebbe un significato che questo badge non ha.
-
-             L'icona è disegnata e non un'emoji, per la stessa ragione scritta
-             sopra il pulsante degli aiuti: un SVG eredita `currentColor` e sta
-             nella tavolozza del gioco, mentre un'emoji la disegna il sistema
-             operativo — a colori pieni, diversa su ogni telefono. -->
-        <p v-if="isReview" class="wordle__badge wordle__badge--review">
-          <svg
-            class="wordle__icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M20.5 14a8.5 8.5 0 1 1-1.9-8.4" />
-            <polyline points="20.5 3.5 20.5 9 15 9" />
-          </svg>
-          <span>Seen</span>
-        </p>
-
-        <div class="wordle__side-col wordle__side-col--right">
-          <button
-            class="wordle__hint-open"
-            :class="{ 'wordle__hint-open--lit': vaultHasAttempt }"
-            type="button"
-            :aria-label="
-              vaultHasAttempt
-                ? 'Open the Vault — a guess is ready'
-                : 'Open the Vault'
-            "
-            @click="vaultPanelOpen = true"
-          >
-            <!-- Un portellone da caveau (cerchio, ghiera centrale, quattro
-                 perni) invece di un lucchetto: quello si legge come "chiuso",
-                 mentre il bottone è sempre cliccabile. Stessa idea delle altre
-                 icone: disegnata, non un'emoji, eredita il colore del testo.
-                 La ghiera si accende (stessa classe --lit della lampadina
-                 degli aiuti) quando c'è una parola pronta da provare. -->
-            <svg
-              class="wordle__icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="9" />
-              <circle cx="12" cy="12" r="3" class="wordle__icon-dial" />
-              <path d="M12 3v2M12 19v2M3 12h2M19 12h2" />
-            </svg>
-            Vault
-          </button>
-
-          <button
-            v-if="hintAvailable"
-            class="wordle__hint-open"
-            :class="{ 'wordle__hint-open--lit': canBuyAnyHint }"
-            type="button"
-            :aria-label="
-              canBuyAnyHint ? 'Open hints — one is available' : 'Open hints'
-            "
-            @click="hintPanelOpen = true"
-          >
-            <!-- Icona disegnata qui e non un'emoji: un SVG eredita
-                 `currentColor`, quindi si spegne insieme al pulsante ed è
-                 identico su ogni sistema. Un'emoji la disegna il sistema
-                 operativo, sempre a colori pieni. -->
-            <svg
-              class="wordle__icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path
-                class="wordle__icon-bulb"
-                d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"
-              />
-              <path d="M9.5 20h5" />
-            </svg>
-            Hint
-          </button>
-        </div>
-      </div>
-
-      <!-- Riga di servizio: solo il messaggio, ora che i bottoni sono saliti
-           nella coppia di colonne qui sopra. Resta un'altezza fissa e riservata
-           per lo stesso motivo di sempre: comparendo, non deve spostare la
-           griglia mentre qualcuno sta digitando. -->
-      <div class="wordle__status-row">
-        <!-- aria-live fa sì che i lettori di schermo annuncino il messaggio. -->
-        <p class="wordle__message" role="status" aria-live="polite">
-          {{ message }}
-        </p>
-      </div>
-
-      <GameBoard :rows="board" />
-
-      <!-- Aiuti: una finestra e non un pannello dentro la pagina. Su uno schermo
-           da telefono il gioco occupa già tutta l'altezza disponibile, e un
-           blocco che cresce a ogni acquisto spingeva la tastiera fuori schermo.
-           Una finestra sopra il gioco non toglie spazio a nulla, e riusa un
-           linguaggio che il giocatore conosce già (spiegazione, fine partita). -->
-      <div v-if="hintPanelOpen" class="wordle__overlay">
-        <div
-          class="wordle__result"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Hints"
-        >
-          <div class="wordle__block">
-            <p class="wordle__result-label">Need a hint?</p>
-            <p class="wordle__hints-intro">
-              Each one costs points. The clock keeps running.
-            </p>
-          </div>
-
-          <div class="wordle__hints-row">
-            <button
-              v-for="option in hintOptions"
-              :key="option.size"
-              class="wordle__hint"
-              type="button"
-              :disabled="option.bought || !option.affordable"
-              :title="
-                option.bought
-                  ? 'Already bought'
-                  : option.affordable
-                    ? `Costs ${option.cost} points`
-                    : 'Not enough points'
-              "
-              @click="buyHint(option.size)"
-            >
-              <span class="wordle__hint-label">{{ option.label }}</span>
-              <span class="wordle__hint-cost">−{{ option.cost }}</span>
-            </button>
-          </div>
-
-          <!-- Gli aiuti comprati restano per tutta la parola: sono stati pagati,
-               e riaprire la finestra per rileggerli non deve costare un secondo
-               acquisto. Ognuno porta il nome dell'aiuto da cui viene, altrimenti
-               comprandone due non si capisce quale testo risponde a cosa. -->
-          <div
-            v-for="hint in boughtHints"
-            :key="hint.size"
-            class="wordle__hint-box"
-          >
-            <p class="wordle__label">{{ HINT_LABELS[hint.size] }}</p>
-            <p class="wordle__hint-text">{{ hint.text }}</p>
-          </div>
-
-          <!-- Lo skip sta qui perché la domanda è la stessa degli aiuti ("sono
-               bloccato, cosa posso fare?") e la moneta pure. Ma è staccato dai
-               tre e in fondo, non in fila con loro: è l'unica scelta di questa
-               finestra che non si può disfare, e un dito che sbaglia pulsante
-               deve poter sbagliare solo fra tre acquisti innocui. -->
-          <div class="wordle__skip">
-            <button
-              class="wordle__skip-button"
-              type="button"
-              :disabled="!canSkip"
-              :title="
-                skipsLeft === 0
-                  ? 'No skips left in this run'
-                  : canSkip
-                    ? `Costs ${skipCost} points — the word is lost`
-                    : 'Not enough points'
-              "
-              @click="skipWord"
-            >
-              <span class="wordle__skip-label">Skip this word</span>
-              <span class="wordle__skip-cost">−{{ skipCost }}</span>
-            </button>
-
-            <!-- Il prezzo da solo non basta a decidere: senza sapere quanti ne
-                 restano, il giocatore non può capire se conviene spenderlo ora o
-                 tenerlo per un livello più avanti, quando le parole sono più
-                 dure. E il rincaro del prossimo si legge già qui. -->
-            <p class="wordle__skip-note">
-              {{ skipsLeft === 1 ? "1 skip left" : `${skipsLeft} skips left` }}
-              in this run · no points for a skipped word
-            </p>
-          </div>
-
-          <button
-            class="wordle__again"
-            type="button"
-            @click="hintPanelOpen = false"
-          >
-            Back to the game
-          </button>
-        </div>
-      </div>
-
-      <!-- Spiegazione: finestra che appare fra un livello e l'altro (e prima del
-           Game Over), col significato della parola appena giocata. Il pulsante
-           chiama la stessa funzione dello scadere dei secondi: la anticipa. -->
-      <div v-if="status === 'explaining'" class="wordle__overlay">
-        <div
-          class="wordle__result"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Word explanation"
-        >
-          <!-- Barra che si svuota: dice quanto manca senza costringere a leggere
-               un numero mentre si sta già leggendo la definizione. -->
-          <div
-            class="wordle__progress"
-            role="progressbar"
-            aria-label="Time left to read"
-            :aria-valuenow="explanationTimeLeft"
-            :aria-valuemax="EXPLANATION_TIME"
-          >
-            <div
-              class="wordle__progress-bar"
-              :style="{ width: explanationProgress }"
-            />
-          </div>
-
-          <p class="wordle__result-label">The word was</p>
-
-          <!-- Il lemma e il suo pulsante audio stanno insieme: è lì che uno
-               cerca il modo di sentire come si pronuncia. -->
-          <div class="wordle__headword">
-            <h2 class="wordle__result-title">{{ answer.toUpperCase() }}</h2>
-            <!-- La voce di sistema è la pronuncia autorevole; l'IPA è l'aiuto
-                 visivo. Se i due divergono, ha ragione l'audio. -->
-            <button
-              class="wordle__speak"
-              type="button"
-              :aria-label="`Listen to the pronunciation of ${answer}`"
-              @click="speakWord"
-            >
-              <svg
-                class="wordle__icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M11 5 6 9H2v6h4l5 4V5z" />
-                <path d="M15.5 8.5a5 5 0 0 1 0 7" />
-                <path d="M19 5a9 9 0 0 1 0 14" />
-              </svg>
-            </button>
-          </div>
-
-          <!-- Riga dei dati brevi: categoria, pronuncia e quanto vale la pena
-               impararla. Ogni pezzo compare solo se c'è, così una parola non
-               ancora generata mostra solo il testo di ripiego. -->
-          <p
-            v-if="
-              currentDefinition.pos ||
-              currentDefinition.ipa ||
-              currentDefinition.cefr
-            "
-            class="wordle__definition-meta"
-          >
-            <span v-if="currentDefinition.pos">{{
-              currentDefinition.pos
-            }}</span>
-            <span v-if="currentDefinition.ipa" class="wordle__definition-ipa">
-              {{ currentDefinition.ipa }}
-            </span>
-            <!-- Il livello di corso a cui si impara la parola, non la sua
-                 frequenza: "B2" chi studia inglese lo può confrontare col proprio
-                 livello, "uncommon" no. La classe si ricava dalla prima lettera
-                 (A, B o C), così bastano tre colori per sei livelli. -->
-            <span
-              v-if="currentDefinition.cefr"
-              class="wordle__definition-level"
-              :class="`wordle__definition-level--${currentDefinition.cefr[0]!.toLowerCase()}`"
-            >
-              {{ currentDefinition.cefr }}
-            </span>
-          </p>
-
-          <p class="wordle__definition wordle__definition--en">
-            {{ currentDefinition.en }}
-          </p>
-          <p
-            v-if="currentDefinition.example"
-            class="wordle__definition wordle__definition--example"
-          >
-            “{{ currentDefinition.example }}”
-          </p>
-
-          <button
-            class="wordle__again"
-            type="button"
-            @click="finishExplanation"
-          >
-            Continue
-          </button>
-        </div>
-      </div>
-
-      <!-- Game Over: finestra modale che appare a partita finita. -->
-      <div v-if="status === 'lost'" class="wordle__overlay">
-        <div
-          class="wordle__result"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Game over"
-        >
-          <!-- A fine partita la domanda del giocatore è una sola: "quanto ho
-               fatto?". Il punteggio è quindi il pezzo grande; il resto lo
-               accompagna. -->
-          <p class="wordle__result-label">Game over</p>
-          <p class="wordle__result-score">{{ score }}</p>
-          <p class="wordle__result-stats">
-            Points · Reached level <strong>{{ level }}</strong>
-          </p>
-          <p class="wordle__result-text">
-            Stopped by <strong>{{ answer.toUpperCase() }}</strong>
-          </p>
-
-          <!-- Richiesta del nome: solo se il punteggio è entrato nei primi 10 e non
-             è ancora stato salvato. -->
-          <form
-            v-if="qualifies && !scoreSubmitted"
-            class="wordle__nickname"
-            @submit.prevent="submitScore"
-          >
-            <label class="wordle__nickname-label" for="nick">
-              Top {{ LEADERBOARD_SIZE }} this month! Enter your name:
-            </label>
-            <input
-              id="nick"
-              class="wordle__nickname-input"
-              v-model="nick"
-              :maxlength="NICKNAME_MAX_LENGTH"
-              autocomplete="off"
-            />
-            <button class="wordle__again" type="submit">Save</button>
-
-            <!-- role="alert" non è decorativo: fa annunciare il messaggio dai
-                 lettori di schermo appena compare. Chi non vede il modulo si
-                 accorgerebbe altrimenti solo del fatto che non succede nulla. -->
-            <p v-if="submitError" class="wordle__nickname-error" role="alert">
-              {{ submitError }}
-            </p>
-          </form>
-
-          <!-- La classifica. Il titolo dice "this month" perché
-               la lista riparte da zero ogni mese: senza, chi vede dieci punteggi
-               più alti del suo pensa di essere fuori per sempre, invece che fino
-               al primo del mese. È anche l'unico posto in cui il giocatore può
-               accorgersi che esiste una scadenza. -->
-          <div v-if="leaderboard.length" class="wordle__block">
-            <p class="wordle__label">Best this month</p>
-            <ol class="wordle__scores">
-              <li
-                v-for="(entry, i) in leaderboard"
-                :key="i"
-                class="wordle__scores-row"
-                :class="{
-                  'wordle__scores-row--me':
-                    scoreSubmitted &&
-                    entry.nick === myNick &&
-                    entry.score === score,
-                }"
-              >
-                <span class="wordle__scores-rank">{{ i + 1 }}</span>
-                <span class="wordle__scores-nick">{{ entry.nick }}</span>
-                <span class="wordle__scores-score">{{ entry.score }}</span>
-              </li>
-            </ol>
-          </div>
-
-          <button class="wordle__again" type="button" @click="newRun">
-            Play again
-          </button>
-
-          <!-- Secondario di proposito, sotto e col solo contorno: dopo una
-               partita la cosa che il giocatore vuole per prima è rigiocare, e
-               questo non deve competere col tasto verde.
-
-               L'etichetta cambia al posto di mostrare un messaggio a parte: né
-               gli appunti né il pannello di condivisione lasciano una traccia
-               visibile, e la conferma deve comparire dove è appena avvenuto il
-               clic, non altrove nella finestra. -->
-          <button
-            class="wordle__share"
-            type="button"
-            :disabled="shareState !== 'idle'"
-            @click="shareResult"
-          >
-            <template v-if="shareState === 'done'">Copied!</template>
-            <template v-else-if="shareState === 'failed'">
-              Couldn't copy
-            </template>
-            <template v-else>Share result</template>
-          </button>
-        </div>
-      </div>
-
-      <!-- Tastiera a schermo: l'unico modo per scrivere su un dispositivo touch. -->
-      <OnScreenKeyboard :key-states="keyStates" @key="handleKey" />
-    </template>
-
-    <VaultPanel
-      v-else
-      :tier="vaultTier"
-      :score="score"
-      :guesses="vaultGuesses"
-      :evaluations="vaultEvaluations"
-      :solved-words="solvedWords"
-      :won-word="vaultWonWord"
-      :lost-word="vaultLostWord"
-      :guess-cost="vaultGuessCost"
-      :time-left="timeDisplay"
-      :explanation-time-left="vaultExplanationTimeLeft"
-      :explanation-progress="vaultExplanationProgress"
-      @guess="submitVaultGuess"
-      @close="vaultPanelOpen = false"
-      @continue="finishVaultExplanation"
-    />
-  </section>
-</template>
-
 <style scoped>
 .wordle {
   /* Tutti i colori in un posto solo: cambiandone uno qui, cambia ovunque. */
-  --wg-gap: 5px;
-  --wg-radius: 4px;
 
-  --wg-text: #1a1a1a;
-  --wg-dim: #6e7275; /* testi secondari: 5,4:1 su bianco, leggibile */
-  --wg-border: #d3d6da; /* bordo delle celle vuote e dei tasti */
-  --wg-border-filled: #878a8c; /* cella scritta ma non ancora inviata */
-  --wg-surface: #f6f7f8; /* fondino appena accennato per i blocchi */
 
   /* I tre colori storici di Wordle. Il verde è appena più scuro
      dell'originale (#6aaa64 → #5f9e58): a occhio è lo stesso colore, ma il
@@ -1711,10 +1704,6 @@ onBeforeUnmount(() => {
      2,3:1 → 3,1:1. Non è un valore scelto a occhio, è il minimo che supera la
      soglia — qualunque tonalità più chiara non ci arriva, e avremmo cambiato
      colore senza guadagnarci niente. */
-  --wg-correct: #5f9e58;
-  --wg-present: #ab8f3a;
-  --wg-absent: #787c7e;
-  --wg-urgent: #d0342c;
 
   display: flex;
   flex-direction: column;
@@ -1722,7 +1711,7 @@ onBeforeUnmount(() => {
   gap: 1.1rem;
   width: 100%;
   max-width: 30rem; /* mai più larga di così sugli schermi grandi */
-  color: var(--wg-text);
+  color: var(--color-text);
 
   /* Toglie lo zoom da doppio tocco dentro l'area di gioco. Qui il doppio tocco
      capita per forza — si scrive una parola in cinque battute veloci sulla
@@ -1831,9 +1820,9 @@ onBeforeUnmount(() => {
   gap: 0.3rem;
   padding: 0.3rem 0.6rem;
   border: none;
-  border-radius: var(--wg-radius);
-  background: var(--wg-border);
-  color: var(--wg-text);
+  border-radius: var(--radius-base);
+  background: var(--color-border);
+  color: var(--color-text);
   font: inherit;
   font-size: 0.75rem;
   font-weight: 700;
@@ -1856,7 +1845,7 @@ onBeforeUnmount(() => {
 }
 
 .wordle__hint-open--lit .wordle__icon-bulb {
-  fill: var(--wg-present);
+  fill: var(--color-present);
 }
 
 /* Stessa accensione, sulla ghiera del caveau invece che sulla lampadina:
@@ -1867,7 +1856,7 @@ onBeforeUnmount(() => {
 }
 
 .wordle__hint-open--lit .wordle__icon-dial {
-  fill: var(--wg-present);
+  fill: var(--color-present);
 }
 
 .wordle__hint-open:active {
@@ -1882,8 +1871,8 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   width: 100%;
-  border-radius: var(--wg-radius);
-  background: var(--wg-surface);
+  border-radius: var(--radius-base);
+  background: var(--color-surface);
   overflow: hidden;
 }
 
@@ -1897,7 +1886,7 @@ onBeforeUnmount(() => {
 
 /* Separatore fra una voce e l'altra, tranne che prima della prima. */
 .wordle__stat + .wordle__stat {
-  box-shadow: inset 1px 0 0 var(--wg-border);
+  box-shadow: inset 1px 0 0 var(--color-border);
 }
 
 .wordle__stat-label {
@@ -1905,7 +1894,7 @@ onBeforeUnmount(() => {
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 /* Cifre a larghezza fissa: non ballano mentre il tempo scende. */
@@ -1930,7 +1919,7 @@ onBeforeUnmount(() => {
   font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.06em;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 .wordle__badge-label {
@@ -1942,7 +1931,7 @@ onBeforeUnmount(() => {
    giocatore deve leggere è la fascia. */
 .wordle__badge-value {
   font-size: 0.78rem;
-  color: var(--wg-text);
+  color: var(--color-text);
   font-variant-numeric: lining-nums tabular-nums;
 }
 
@@ -1951,7 +1940,7 @@ onBeforeUnmount(() => {
 .wordle__badge--review {
   padding: 0.15rem 0.45rem;
   border-radius: 3px;
-  background: var(--wg-surface);
+  background: var(--color-surface);
   text-transform: uppercase;
 }
 
@@ -1962,7 +1951,7 @@ onBeforeUnmount(() => {
 
 .wordle__stat--urgent .wordle__stat-label,
 .wordle__stat--urgent .wordle__stat-value {
-  color: var(--wg-urgent);
+  color: var(--color-urgent);
 }
 
 .wordle__stat--urgent .wordle__stat-value {
@@ -1993,7 +1982,7 @@ onBeforeUnmount(() => {
 .wordle__hints-intro {
   margin: 0;
   font-size: 0.85rem;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 /* Tre colonne di uguale larghezza: su qualsiasi schermo i pulsanti restano
@@ -2001,7 +1990,7 @@ onBeforeUnmount(() => {
 .wordle__hints-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: var(--wg-gap);
+  gap: var(--space-gap);
   width: 100%;
 }
 
@@ -2013,9 +2002,9 @@ onBeforeUnmount(() => {
   min-width: 0;
   padding: 0.5rem 0.3rem;
   border: none;
-  border-radius: var(--wg-radius);
-  background: var(--wg-border);
-  color: var(--wg-text);
+  border-radius: var(--radius-base);
+  background: var(--color-border);
+  color: var(--color-text);
   font: inherit;
   cursor: pointer;
   transition: filter 0.12s ease;
@@ -2032,8 +2021,8 @@ onBeforeUnmount(() => {
 /* Speso o non permesso: resta leggibile ma chiaramente inattivo. Il prezzo
    continua a vedersi, perché è l'informazione che spiega il perché. */
 .wordle__hint:disabled {
-  background: var(--wg-surface);
-  color: var(--wg-dim);
+  background: var(--color-surface);
+  color: var(--color-text-dim);
   cursor: not-allowed;
 }
 
@@ -2062,8 +2051,8 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   width: 100%;
   padding: 0.45rem 0.6rem;
-  border-radius: var(--wg-radius);
-  background: var(--wg-surface);
+  border-radius: var(--radius-base);
+  background: var(--color-surface);
   text-align: left;
 }
 
@@ -2079,7 +2068,7 @@ onBeforeUnmount(() => {
 .wordle__skip {
   width: 100%;
   padding-top: 0.7rem;
-  border-top: 1px solid var(--wg-border);
+  border-top: 1px solid var(--color-border);
 }
 
 /* Largo tutta la finestra, al contrario dei tre aiuti che stanno in colonne
@@ -2092,7 +2081,7 @@ onBeforeUnmount(() => {
 
    Il fondo trasparente non è un dettaglio: con un fondino chiaro lo skip
    diventava indistinguibile dagli aiuti SPENTI, che passano anche loro a
-   --wg-surface. Ed è lo stato in cui li trova chiunque inizi una partita, a
+   --color-surface. Ed è lo stato in cui li trova chiunque inizi una partita, a
    punti zero. */
 .wordle__skip-button {
   display: flex;
@@ -2101,10 +2090,10 @@ onBeforeUnmount(() => {
   gap: 0.4rem;
   width: 100%;
   padding: 0.55rem 0.7rem;
-  border: 1px solid var(--wg-border-filled);
-  border-radius: var(--wg-radius);
+  border: 1px solid var(--color-border-filled);
+  border-radius: var(--radius-base);
   background: transparent;
-  color: var(--wg-text);
+  color: var(--color-text);
   font: inherit;
   cursor: pointer;
   transition:
@@ -2116,8 +2105,8 @@ onBeforeUnmount(() => {
    c'è niente da scurire con un filtro, come si fa per gli aiuti: qui la
    reazione al mouse deve essere il fondo stesso. */
 .wordle__skip-button:hover:not(:disabled) {
-  background: var(--wg-surface);
-  border-color: var(--wg-text);
+  background: var(--color-surface);
+  border-color: var(--color-text);
 }
 
 .wordle__skip-button:active:not(:disabled) {
@@ -2129,8 +2118,8 @@ onBeforeUnmount(() => {
    contorno si schiarisce: un pulsante inattivo non può avere il bordo più
    marcato di quelli attivi lì accanto. */
 .wordle__skip-button:disabled {
-  border-color: var(--wg-border);
-  color: var(--wg-dim);
+  border-color: var(--color-border);
+  color: var(--color-text-dim);
   cursor: not-allowed;
 }
 
@@ -2150,7 +2139,7 @@ onBeforeUnmount(() => {
   margin: 0.35rem 0 0;
   font-size: 0.72rem;
   line-height: 1.35;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
   text-align: center;
 }
 
@@ -2207,14 +2196,14 @@ onBeforeUnmount(() => {
   left: 0;
   width: 100%;
   height: 4px;
-  background: var(--wg-border);
+  background: var(--color-border);
   border-radius: 8px 8px 0 0;
   overflow: hidden;
 }
 
 .wordle__progress-bar {
   height: 100%;
-  background: var(--wg-correct);
+  background: var(--color-correct);
   /* `linear` e non `ease`: il tempo scorre a velocità costante, e
      l'animazione deve dire la verità. */
   transition: width 1s linear;
@@ -2227,7 +2216,7 @@ onBeforeUnmount(() => {
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 /* Il lemma e il suo pulsante audio, sulla stessa riga. */
@@ -2266,21 +2255,21 @@ onBeforeUnmount(() => {
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 .wordle__result-stats strong {
-  color: var(--wg-text);
+  color: var(--color-text);
 }
 
 .wordle__result-text {
   margin: 0;
   font-size: 0.95rem;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 .wordle__result-text strong {
-  color: var(--wg-text);
+  color: var(--color-text);
   letter-spacing: 0.05em;
 }
 
@@ -2302,7 +2291,7 @@ onBeforeUnmount(() => {
   gap: 0.5rem;
   margin: -0.4rem 0 0;
   font-size: 0.85rem;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 /* La pronuncia in carattere a larghezza fissa: i simboli fonetici hanno
@@ -2327,15 +2316,15 @@ onBeforeUnmount(() => {
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: #ffffff;
-  background: var(--wg-absent);
+  background: var(--color-absent);
 }
 
 .wordle__definition-level--a {
-  background: var(--wg-correct);
+  background: var(--color-correct);
 }
 
 .wordle__definition-level--b {
-  background: var(--wg-present);
+  background: var(--color-present);
   color: #ffffff;
 }
 
@@ -2350,7 +2339,7 @@ onBeforeUnmount(() => {
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: var(--wg-border);
+  background: var(--color-border);
   font-size: 0.9rem;
   line-height: 1;
   cursor: pointer;
@@ -2360,7 +2349,7 @@ onBeforeUnmount(() => {
 }
 
 .wordle__speak:hover {
-  background: var(--wg-border-filled);
+  background: var(--color-border-filled);
 }
 
 .wordle__speak:active {
@@ -2370,7 +2359,7 @@ onBeforeUnmount(() => {
 /* La definizione: è il testo che si legge davvero, quindi il più grande. */
 .wordle__definition--en {
   padding-top: 0.9rem;
-  border-top: 1px solid var(--wg-border);
+  border-top: 1px solid var(--color-border);
   font-size: 1.05rem;
   line-height: 1.5;
 }
@@ -2379,13 +2368,13 @@ onBeforeUnmount(() => {
    verde delle lettere azzeccate. */
 .wordle__definition--example {
   padding: 0.7rem 0.85rem;
-  border-left: 3px solid var(--wg-correct);
-  border-radius: 0 var(--wg-radius) var(--wg-radius) 0;
-  background: var(--wg-surface);
+  border-left: 3px solid var(--color-correct);
+  border-radius: 0 var(--radius-base) var(--radius-base) 0;
+  background: var(--color-surface);
   font-size: 0.95rem;
   font-style: italic;
   line-height: 1.45;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 /* === Pulsanti === */
@@ -2395,8 +2384,8 @@ onBeforeUnmount(() => {
   margin-top: 0.25rem;
   padding: 0.85rem 1.4rem;
   border: none;
-  border-radius: var(--wg-radius);
-  background: var(--wg-correct);
+  border-radius: var(--radius-base);
+  background: var(--color-correct);
   color: #ffffff;
   font: inherit;
   font-size: 0.85rem;
@@ -2423,7 +2412,7 @@ onBeforeUnmount(() => {
   gap: 0.6rem;
   width: 100%;
   padding-top: 0.9rem;
-  border-top: 1px solid var(--wg-border);
+  border-top: 1px solid var(--color-border);
 }
 
 .wordle__nickname-label {
@@ -2437,8 +2426,8 @@ onBeforeUnmount(() => {
   width: 100%;
   box-sizing: border-box;
   padding: 0.65rem 0.7rem;
-  border: 2px solid var(--wg-border);
-  border-radius: var(--wg-radius);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-base);
   background: #ffffff;
   font: inherit;
   font-size: 1.1rem;
@@ -2446,15 +2435,15 @@ onBeforeUnmount(() => {
   letter-spacing: 0.06em;
   text-align: center;
   text-transform: uppercase;
-  color: var(--wg-text);
+  color: var(--color-text);
 }
 
 .wordle__nickname-input:focus {
   outline: none;
-  border-color: var(--wg-correct);
+  border-color: var(--color-correct);
 }
 
-/* Il rosso qui è lecito, a differenza che sulla griglia: --wg-urgent è già il
+/* Il rosso qui è lecito, a differenza che sulla griglia: --color-urgent è già il
    colore del tempo che sta per finire, cioè "qualcosa non va", e un messaggio
    di errore dice la stessa cosa. Non ruba significato a verde e giallo, che
    sono i colori delle lettere. */
@@ -2462,7 +2451,7 @@ onBeforeUnmount(() => {
   margin: 0;
   font-size: 0.8rem;
   line-height: 1.35;
-  color: var(--wg-urgent);
+  color: var(--color-urgent);
   text-align: center;
 }
 
@@ -2491,7 +2480,7 @@ onBeforeUnmount(() => {
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 .wordle__scores {
@@ -2509,15 +2498,15 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 0.7rem;
   padding: 0.45rem 0.6rem;
-  border-radius: var(--wg-radius);
-  background: var(--wg-surface);
+  border-radius: var(--radius-base);
+  background: var(--color-surface);
   font-size: 0.95rem;
 }
 
 /* La riga appena salvata dal giocatore si distingue dalle altre. */
 .wordle__scores-row--me {
   background: #e8f2e7;
-  box-shadow: inset 0 0 0 2px var(--wg-correct);
+  box-shadow: inset 0 0 0 2px var(--color-correct);
 }
 
 .wordle__scores-rank {
@@ -2531,7 +2520,7 @@ onBeforeUnmount(() => {
   font-weight: 700;
   font-variant-numeric: lining-nums tabular-nums;
   color: #ffffff;
-  background: var(--wg-absent);
+  background: var(--color-absent);
 }
 
 /* Oro, argento e bronzo per i primi tre. */
@@ -2549,17 +2538,17 @@ onBeforeUnmount(() => {
    distinzione di lì — pieno per l'azione principale, contorno per quella
    secondaria — e qui la principale è rigiocare.
 
-   Lo sfondo trasparente e non var(--wg-surface): la finestra è bianca e il
+   Lo sfondo trasparente e non var(--color-surface): la finestra è bianca e il
    fondino chiaro lo renderebbe indistinguibile dai riquadri delle liste. */
 .wordle__share {
   width: 100%;
   box-sizing: border-box;
   margin-top: -0.35rem;
   padding: 0.6rem 1.4rem;
-  border: 1px solid var(--wg-border-filled);
-  border-radius: var(--wg-radius);
+  border: 1px solid var(--color-border-filled);
+  border-radius: var(--radius-base);
   background: transparent;
-  color: var(--wg-text);
+  color: var(--color-text);
   font: inherit;
   font-size: 0.78rem;
   font-weight: 700;
@@ -2572,8 +2561,8 @@ onBeforeUnmount(() => {
 }
 
 .wordle__share:hover:not(:disabled) {
-  background: var(--wg-surface);
-  border-color: var(--wg-text);
+  background: var(--color-surface);
+  border-color: var(--color-text);
 }
 
 .wordle__share:active:not(:disabled) {
@@ -2584,8 +2573,8 @@ onBeforeUnmount(() => {
    perché premerlo di nuovo faccia danni, ma perché un pulsante che dice
    "Copied!" ed è ancora premibile invita a premerlo e a chiedersi cosa fa. */
 .wordle__share:disabled {
-  border-color: var(--wg-border);
-  color: var(--wg-dim);
+  border-color: var(--color-border);
+  color: var(--color-text-dim);
   cursor: default;
 }
 

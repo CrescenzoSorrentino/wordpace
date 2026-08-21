@@ -1,182 +1,3 @@
-<script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import {
-  EXPLANATION_TIME,
-  isValidWord,
-  keyStatesFor,
-  MAX_ATTEMPTS,
-  WORD_LENGTH,
-  type LetterState,
-} from "#shared/wordle";
-import { MISSING_DEFINITION, type WordEntry } from "#shared/definitions";
-
-const props = defineProps<{
-  tier: number;
-  score: number;
-  guesses: string[];
-  evaluations: LetterState[][];
-  solvedWords: { word: string; wasReview: boolean }[];
-  wonWord: string | null;
-  lostWord: string | null;
-  guessCost: { cost: number; affordable: boolean };
-  timeLeft: string;
-  explanationTimeLeft: number;
-  explanationProgress: string;
-}>();
-
-const emit = defineEmits<{
-  guess: [word: string, isFree: boolean];
-  close: [];
-  continue: [];
-}>();
-
-// Stato di sola interfaccia: cosa c'è scritto finora nel tentativo libero
-// (una lettera alla volta, come `currentGuess` nel gioco principale — ma è
-// tutta sua, non tocca lo stato del gioco), ed è sempre attivo (non più un
-// interruttore lista/tastiera): la tastiera sta fissa sotto la griglia, e la
-// lista si apre a parte, in un popup.
-const freeGuess = ref("");
-const error = ref("");
-const listOpen = ref(false);
-
-// La definizione della parola appena spiegata — vinta o persa, `wonWord` o
-// `lostWord` — mostrata mentre uno dei due non è null. Suo scarico proprio,
-// non quello del gioco principale: qui la parola non è mai `answer`.
-const definition = ref<WordEntry>(MISSING_DEFINITION);
-
-async function fetchDefinition(word: string) {
-  definition.value = MISSING_DEFINITION;
-  try {
-    definition.value = await $fetch<WordEntry>("/api/definition", {
-      query: { word },
-    });
-  } catch (e) {
-    console.error("Could not load definition:", e);
-  }
-}
-
-watch(
-  () => props.wonWord,
-  (word) => {
-    if (word) fetchDefinition(word);
-  },
-);
-
-watch(
-  () => props.lostWord,
-  (word) => {
-    if (word) fetchDefinition(word);
-  },
-);
-
-// Stessa forma di `board` nel gioco principale, e stessa griglia fissa
-// (WORD_LENGTH × MAX_ATTEMPTS): righe per i tentativi già inviati, poi la
-// riga attiva, poi tutte le righe restanti vuote, così la griglia ha sempre
-// lo stesso aspetto della home invece di crescere e restringersi con ogni
-// tentativo.
-const board = computed(() => {
-  const rows: { letter: string; state: LetterState | "empty" | "filled" }[][] =
-    [];
-
-  for (let r = 0; r < MAX_ATTEMPTS; r++) {
-    const cells: { letter: string; state: LetterState | "empty" | "filled" }[] =
-      [];
-
-    const submitted = r < props.guesses.length;
-    const isActiveRow = r === props.guesses.length;
-
-    for (let c = 0; c < WORD_LENGTH; c++) {
-      if (submitted) {
-        cells.push({
-          letter: props.guesses[r]![c]!,
-          state: props.evaluations[r]![c]!,
-        });
-      } else if (isActiveRow && c < freeGuess.value.length) {
-        cells.push({ letter: freeGuess.value[c]!, state: "filled" });
-      } else {
-        cells.push({ letter: "", state: "empty" });
-      }
-    }
-
-    rows.push(cells);
-  }
-
-  return rows;
-});
-
-// Riusa la stessa funzione pura del gioco principale, sui tentativi di
-// questo tier invece che su quelli della parola in corso.
-const keyStates = computed(() => keyStatesFor(props.guesses, props.evaluations));
-
-// Per il badge "Unlocked": a differenza del numero in HUD (che è il tier
-// grezzo), qui si mostra la fascia CEFR che quel tier sblocca — segue il
-// tier corrente, non il livello della partita principale.
-const TIER_LABELS = ["A1-A2", "+B1", "+B2", "All levels"];
-const unlockedLabel = computed(() => TIER_LABELS[props.tier]);
-
-function chooseSolved(word: string) {
-  error.value = "";
-  emit("guess", word, false);
-  listOpen.value = false;
-}
-
-/** Smista un tasto (lettera, invio o cancella) per il tentativo libero. */
-function handleKey(key: string) {
-  if (key === "enter") {
-    submitFree();
-  } else if (key === "back") {
-    freeGuess.value = freeGuess.value.slice(0, -1);
-  } else if (/^[a-z]$/.test(key) && freeGuess.value.length < WORD_LENGTH) {
-    freeGuess.value += key;
-  }
-}
-
-function submitFree() {
-  const word = freeGuess.value.trim().toLowerCase();
-  if (word.length < WORD_LENGTH) {
-    error.value = "Not enough letters";
-    return;
-  }
-  if (!isValidWord(word)) {
-    error.value = "Not in word list";
-    return;
-  }
-  if (!props.guessCost.affordable) {
-    error.value = "Not enough points";
-    return;
-  }
-  error.value = "";
-  emit("guess", word, true);
-  freeGuess.value = "";
-}
-
-/**
- * Tastiera fisica: Escape chiude il popup della lista se è aperto; altrimenti
- * scrive nel tentativo libero. Il genitore, con questo pannello aperto, non
- * fa già più nulla con i tasti (si ferma all'Escape) quindi qui si può
- * ascoltare senza conflitti.
- */
-function onPhysicalKey(event: KeyboardEvent) {
-  if (event.metaKey || event.ctrlKey || event.altKey) return;
-
-  if (listOpen.value) {
-    if (event.key === "Escape") listOpen.value = false;
-    return;
-  }
-
-  if (event.key === "Enter") {
-    handleKey("enter");
-  } else if (event.key === "Backspace") {
-    handleKey("back");
-  } else {
-    handleKey(event.key.toLowerCase());
-  }
-}
-
-onMounted(() => window.addEventListener("keydown", onPhysicalKey));
-onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
-</script>
-
 <template>
   <!-- Stessa schermata del gioco principale (HUD, riga di stato, griglia):
        qui "Time" mostra lo stesso timeLeft del gioco principale, che il
@@ -452,6 +273,185 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
   </section>
 </template>
 
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import {
+  EXPLANATION_TIME,
+  isValidWord,
+  keyStatesFor,
+  MAX_ATTEMPTS,
+  WORD_LENGTH,
+  type LetterState,
+} from "#shared/wordle";
+import { MISSING_DEFINITION, type WordEntry } from "#shared/definitions";
+
+const props = defineProps<{
+  tier: number;
+  score: number;
+  guesses: string[];
+  evaluations: LetterState[][];
+  solvedWords: { word: string; wasReview: boolean }[];
+  wonWord: string | null;
+  lostWord: string | null;
+  guessCost: { cost: number; affordable: boolean };
+  timeLeft: string;
+  explanationTimeLeft: number;
+  explanationProgress: string;
+}>();
+
+const emit = defineEmits<{
+  guess: [word: string, isFree: boolean];
+  close: [];
+  continue: [];
+}>();
+
+// Stato di sola interfaccia: cosa c'è scritto finora nel tentativo libero
+// (una lettera alla volta, come `currentGuess` nel gioco principale — ma è
+// tutta sua, non tocca lo stato del gioco), ed è sempre attivo (non più un
+// interruttore lista/tastiera): la tastiera sta fissa sotto la griglia, e la
+// lista si apre a parte, in un popup.
+const freeGuess = ref("");
+const error = ref("");
+const listOpen = ref(false);
+
+// La definizione della parola appena spiegata — vinta o persa, `wonWord` o
+// `lostWord` — mostrata mentre uno dei due non è null. Suo scarico proprio,
+// non quello del gioco principale: qui la parola non è mai `answer`.
+const definition = ref<WordEntry>(MISSING_DEFINITION);
+
+async function fetchDefinition(word: string) {
+  definition.value = MISSING_DEFINITION;
+  try {
+    definition.value = await $fetch<WordEntry>("/api/definition", {
+      query: { word },
+    });
+  } catch (e) {
+    console.error("Could not load definition:", e);
+  }
+}
+
+watch(
+  () => props.wonWord,
+  (word) => {
+    if (word) fetchDefinition(word);
+  },
+);
+
+watch(
+  () => props.lostWord,
+  (word) => {
+    if (word) fetchDefinition(word);
+  },
+);
+
+// Stessa forma di `board` nel gioco principale, e stessa griglia fissa
+// (WORD_LENGTH × MAX_ATTEMPTS): righe per i tentativi già inviati, poi la
+// riga attiva, poi tutte le righe restanti vuote, così la griglia ha sempre
+// lo stesso aspetto della home invece di crescere e restringersi con ogni
+// tentativo.
+const board = computed(() => {
+  const rows: { letter: string; state: LetterState | "empty" | "filled" }[][] =
+    [];
+
+  for (let r = 0; r < MAX_ATTEMPTS; r++) {
+    const cells: { letter: string; state: LetterState | "empty" | "filled" }[] =
+      [];
+
+    const submitted = r < props.guesses.length;
+    const isActiveRow = r === props.guesses.length;
+
+    for (let c = 0; c < WORD_LENGTH; c++) {
+      if (submitted) {
+        cells.push({
+          letter: props.guesses[r]![c]!,
+          state: props.evaluations[r]![c]!,
+        });
+      } else if (isActiveRow && c < freeGuess.value.length) {
+        cells.push({ letter: freeGuess.value[c]!, state: "filled" });
+      } else {
+        cells.push({ letter: "", state: "empty" });
+      }
+    }
+
+    rows.push(cells);
+  }
+
+  return rows;
+});
+
+// Riusa la stessa funzione pura del gioco principale, sui tentativi di
+// questo tier invece che su quelli della parola in corso.
+const keyStates = computed(() => keyStatesFor(props.guesses, props.evaluations));
+
+// Per il badge "Unlocked": a differenza del numero in HUD (che è il tier
+// grezzo), qui si mostra la fascia CEFR che quel tier sblocca — segue il
+// tier corrente, non il livello della partita principale.
+const TIER_LABELS = ["A1-A2", "+B1", "+B2", "All levels"];
+const unlockedLabel = computed(() => TIER_LABELS[props.tier]);
+
+function chooseSolved(word: string) {
+  error.value = "";
+  emit("guess", word, false);
+  listOpen.value = false;
+}
+
+/** Smista un tasto (lettera, invio o cancella) per il tentativo libero. */
+function handleKey(key: string) {
+  if (key === "enter") {
+    submitFree();
+  } else if (key === "back") {
+    freeGuess.value = freeGuess.value.slice(0, -1);
+  } else if (/^[a-z]$/.test(key) && freeGuess.value.length < WORD_LENGTH) {
+    freeGuess.value += key;
+  }
+}
+
+function submitFree() {
+  const word = freeGuess.value.trim().toLowerCase();
+  if (word.length < WORD_LENGTH) {
+    error.value = "Not enough letters";
+    return;
+  }
+  if (!isValidWord(word)) {
+    error.value = "Not in word list";
+    return;
+  }
+  if (!props.guessCost.affordable) {
+    error.value = "Not enough points";
+    return;
+  }
+  error.value = "";
+  emit("guess", word, true);
+  freeGuess.value = "";
+}
+
+/**
+ * Tastiera fisica: Escape chiude il popup della lista se è aperto; altrimenti
+ * scrive nel tentativo libero. Il genitore, con questo pannello aperto, non
+ * fa già più nulla con i tasti (si ferma all'Escape) quindi qui si può
+ * ascoltare senza conflitti.
+ */
+function onPhysicalKey(event: KeyboardEvent) {
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+  if (listOpen.value) {
+    if (event.key === "Escape") listOpen.value = false;
+    return;
+  }
+
+  if (event.key === "Enter") {
+    handleKey("enter");
+  } else if (event.key === "Backspace") {
+    handleKey("back");
+  } else {
+    handleKey(event.key.toLowerCase());
+  }
+}
+
+onMounted(() => window.addEventListener("keydown", onPhysicalKey));
+onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
+</script>
+
 <style scoped>
 /* Stessa struttura di .wordle in WordpaceGame.vue (flex, gap, larghezza
    massima) — nel flusso normale della pagina, non sopra a tutto: deve
@@ -466,15 +466,15 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
   gap: 1.1rem;
   width: 100%;
   max-width: 30rem;
-  color: var(--wg-text);
+  color: var(--color-text);
 }
 
 .wordle__hud {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   width: 100%;
-  border-radius: var(--wg-radius);
-  background: var(--wg-surface);
+  border-radius: var(--radius-base);
+  background: var(--color-surface);
   overflow: hidden;
 }
 
@@ -487,7 +487,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
 }
 
 .wordle__stat + .wordle__stat {
-  box-shadow: inset 1px 0 0 var(--wg-border);
+  box-shadow: inset 1px 0 0 var(--color-border);
 }
 
 .wordle__stat-label {
@@ -495,7 +495,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 .wordle__stat-value {
@@ -542,7 +542,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
   font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.06em;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 .wordle__badge-label {
@@ -552,7 +552,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
 
 .wordle__badge-value {
   font-size: 0.78rem;
-  color: var(--wg-text);
+  color: var(--color-text);
 }
 
 /* Senza dimensione esplicita un SVG inline prende la misura di default del
@@ -581,9 +581,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
   gap: 0.3rem;
   padding: 0.3rem 0.6rem;
   border: none;
-  border-radius: var(--wg-radius);
-  background: var(--wg-border);
-  color: var(--wg-text);
+  border-radius: var(--radius-base);
+  background: var(--color-border);
+  color: var(--color-text);
   font: inherit;
   font-size: 0.75rem;
   font-weight: 700;
@@ -634,9 +634,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
   width: 100%;
   padding: 0.5rem 0.7rem;
   border: none;
-  border-radius: var(--wg-radius);
-  background: var(--wg-surface);
-  color: var(--wg-text);
+  border-radius: var(--radius-base);
+  background: var(--color-surface);
+  color: var(--color-text);
   font-size: 0.95rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -655,13 +655,13 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
 .vault__list-empty {
   margin: 0;
   font-size: 0.85rem;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 .vault__keyboard-warning {
   margin: 0;
   font-size: 0.85rem;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
   text-align: center;
 }
 
@@ -702,7 +702,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 /* Barra della spiegazione: stessa regola del gioco principale, duplicata
@@ -713,14 +713,14 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
   left: 0;
   width: 100%;
   height: 4px;
-  background: var(--wg-border);
+  background: var(--color-border);
   border-radius: 8px 8px 0 0;
   overflow: hidden;
 }
 
 .wordle__progress-bar {
   height: 100%;
-  background: var(--wg-correct);
+  background: var(--color-correct);
   transition: width 1s linear;
 }
 
@@ -751,7 +751,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
   gap: 0.5rem;
   margin: -0.4rem 0 0;
   font-size: 0.85rem;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 .wordle__definition-ipa {
@@ -767,34 +767,34 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: #ffffff;
-  background: var(--wg-absent);
+  background: var(--color-absent);
 }
 
 .wordle__definition-level--a {
-  background: var(--wg-correct);
+  background: var(--color-correct);
 }
 
 .wordle__definition-level--b {
-  background: var(--wg-present);
+  background: var(--color-present);
   color: #ffffff;
 }
 
 .wordle__definition--en {
   padding-top: 0.9rem;
-  border-top: 1px solid var(--wg-border);
+  border-top: 1px solid var(--color-border);
   font-size: 1.05rem;
   line-height: 1.5;
 }
 
 .wordle__definition--example {
   padding: 0.7rem 0.85rem;
-  border-left: 3px solid var(--wg-correct);
-  border-radius: 0 var(--wg-radius) var(--wg-radius) 0;
-  background: var(--wg-surface);
+  border-left: 3px solid var(--color-correct);
+  border-radius: 0 var(--radius-base) var(--radius-base) 0;
+  background: var(--color-surface);
   font-size: 0.95rem;
   font-style: italic;
   line-height: 1.45;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 /* Bottone che chiude il popup: stessa classe usata per aiuti, spiegazione e
@@ -805,8 +805,8 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
   margin-top: 0.25rem;
   padding: 0.85rem 1.4rem;
   border: none;
-  border-radius: var(--wg-radius);
-  background: var(--wg-correct);
+  border-radius: var(--radius-base);
+  background: var(--color-correct);
   color: #ffffff;
   font: inherit;
   font-size: 0.85rem;

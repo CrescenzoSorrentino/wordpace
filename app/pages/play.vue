@@ -1,3 +1,14 @@
+<template>
+  <main class="play">
+    <!-- Il rimando alla home. Non è un tasto "indietro" del browser: da qui si
+         può arrivare anche con un link diretto, e in quel caso indietro non
+         porterebbe da nessuna parte. -->
+    <NuxtLink to="/" class="play__home">Wordpace</NuxtLink>
+
+    <WordpaceGame />
+  </main>
+</template>
+
 <script setup lang="ts">
 /**
  * La pagina del gioco. Volutamente spoglia: qui il compito è non stare in mezzo.
@@ -10,17 +21,6 @@ useSeoMeta({
   title: "Play — Wordpace",
 });
 </script>
-
-<template>
-  <main class="play">
-    <!-- Il rimando alla home. Non è un tasto "indietro" del browser: da qui si
-         può arrivare anche con un link diretto, e in quel caso indietro non
-         porterebbe da nessuna parte. -->
-    <NuxtLink to="/" class="play__home">Wordpace</NuxtLink>
-
-    <WordpaceGame />
-  </main>
-</template>
 
 <style scoped>
 .play {

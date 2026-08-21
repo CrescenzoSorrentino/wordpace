@@ -1,46 +1,3 @@
-<script setup lang="ts">
-/**
- * Home: la pagina su cui atterra chi riceve il link, e il punto da cui si
- * riparte fra una partita e l'altra. Non contiene il gioco — quello sta in
- * /play — perché le due pagine hanno mestieri opposti: qui si legge con calma,
- * lì si corre contro il tempo.
- */
-import type { LeaderboardEntry } from "#shared/leaderboard";
-// Le FUNZIONI di app/utils/ sono auto-importate, i TIPI no: vanno chiesti a
-// mano. È la sola cosa che l'auto-import non copre.
-import type { Stats } from "~/utils/stats";
-
-/**
- * La classifica del mese, chiesta al server DURANTE la resa della pagina e non
- * dal browser dopo: così arriva già dentro l'HTML e la sezione non compare con
- * un sussulto un istante dopo il resto.
- *
- * `default` copre il caso in cui la rotta non risponda: una home senza
- * classifica è accettabile, una home rotta no.
- */
-const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
-  "/api/leaderboard",
-  { default: () => [] },
-);
-
-/**
- * I record personali, che vivono nel browser di chi gioca.
- *
- * Restano `null` finché la pagina non è nel browser: localStorage non esiste
- * sul server, e leggerlo durante la resa della pagina la farebbe fallire. Per
- * questo si carica in onMounted e non accanto alla classifica qui sopra.
- *
- * Conseguenza visibile: il riquadro compare un istante dopo il resto. È
- * inevitabile — quel dato il server non ce l'ha e non può averlo.
- */
-const stats = ref<Stats | null>(null);
-
-onMounted(() => {
-  stats.value = loadStats();
-});
-
-</script>
-
 <template>
   <main class="page">
     <header class="hero">
@@ -241,24 +198,58 @@ onMounted(() => {
   </main>
 </template>
 
+<script setup lang="ts">
+/**
+ * Home: la pagina su cui atterra chi riceve il link, e il punto da cui si
+ * riparte fra una partita e l'altra. Non contiene il gioco — quello sta in
+ * /play — perché le due pagine hanno mestieri opposti: qui si legge con calma,
+ * lì si corre contro il tempo.
+ */
+import type { LeaderboardEntry } from "#shared/leaderboard";
+// Le FUNZIONI di app/utils/ sono auto-importate, i TIPI no: vanno chiesti a
+// mano. È la sola cosa che l'auto-import non copre.
+import type { Stats } from "~/utils/stats";
+
+/**
+ * La classifica del mese, chiesta al server DURANTE la resa della pagina e non
+ * dal browser dopo: così arriva già dentro l'HTML e la sezione non compare con
+ * un sussulto un istante dopo il resto.
+ *
+ * `default` copre il caso in cui la rotta non risponda: una home senza
+ * classifica è accettabile, una home rotta no.
+ */
+const { data: leaderboard } = await useFetch<LeaderboardEntry[]>(
+  "/api/leaderboard",
+  { default: () => [] },
+);
+
+/**
+ * I record personali, che vivono nel browser di chi gioca.
+ *
+ * Restano `null` finché la pagina non è nel browser: localStorage non esiste
+ * sul server, e leggerlo durante la resa della pagina la farebbe fallire. Per
+ * questo si carica in onMounted e non accanto alla classifica qui sopra.
+ *
+ * Conseguenza visibile: il riquadro compare un istante dopo il resto. È
+ * inevitabile — quel dato il server non ce l'ha e non può averlo.
+ */
+const stats = ref<Stats | null>(null);
+
+onMounted(() => {
+  stats.value = loadStats();
+});
+
+</script>
+
 <style scoped>
 .page {
   /* Gli stessi colori del gioco. Sono ridichiarati qui e non importati perché
      là vivono dentro `.wordle`, che su questa pagina non esiste. */
-  --wg-text: #1a1a1a;
-  --wg-dim: #6e7275;
-  --wg-border: #d3d6da;
-  --wg-surface: #f6f7f8;
-  --wg-correct: #5f9e58;
-  --wg-present: #ab8f3a;
-  --wg-absent: #787c7e;
 
   /* La larghezza della colonna, una sola per tutta la pagina. */
-  --col: 26rem;
   /* Lo stesso raggio degli angoli del gioco: qui era scritto a mano in cinque
      punti, con tre valori diversi (3, 4 e 6px). Bastava guardare due riquadri
      vicini per accorgersene. */
-  --radius: 4px;
 
   display: flex;
   flex-direction: column;
@@ -274,7 +265,7 @@ onMounted(() => {
     Arial,
     sans-serif;
   background: #ffffff;
-  color: var(--wg-text);
+  color: var(--color-text);
 }
 
 /* === Testatina ===
@@ -319,7 +310,7 @@ onMounted(() => {
 /* I riquadri vuoti: solo il contorno, come le celle non ancora giocate. */
 .hero__tiles rect {
   fill: none;
-  stroke: var(--wg-border);
+  stroke: var(--color-border);
   stroke-width: 2;
 }
 
@@ -327,20 +318,20 @@ onMounted(() => {
 /* Più smorzati di prima: con il motivo ripetuto le celle colorate sono molte di
    più, e alla vecchia intensità la fascia diventerebbe un tappeto a pois. */
 .hero__tiles .is-correct {
-  fill: var(--wg-correct);
-  stroke: var(--wg-correct);
+  fill: var(--color-correct);
+  stroke: var(--color-correct);
   opacity: 0.32;
 }
 
 .hero__tiles .is-present {
-  fill: var(--wg-present);
-  stroke: var(--wg-present);
+  fill: var(--color-present);
+  stroke: var(--color-present);
   opacity: 0.3;
 }
 
 .hero__tiles .is-absent {
-  fill: var(--wg-absent);
-  stroke: var(--wg-absent);
+  fill: var(--color-absent);
+  stroke: var(--color-absent);
   opacity: 0.18;
 }
 
@@ -374,7 +365,7 @@ onMounted(() => {
   letter-spacing: 0.22em;
   text-transform: uppercase;
   text-indent: 0.22em;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 /* Una colonna sola a ogni larghezza di schermo: la stessa impaginazione del
@@ -382,7 +373,7 @@ onMounted(() => {
    gancio e la dimostrazione affiancati su schermo largo, e il gancio col tasto
    dentro la fascia della testatina: entrambe peggio da guardare.
 
-   Tutte le sezioni condividono la stessa larghezza (--col): la ragione per cui
+   Tutte le sezioni condividono la stessa larghezza (--space-col): la ragione per cui
    la pagina sembrava un foglio era che ognuna ne aveva una diversa. */
 .top {
   display: flex;
@@ -390,7 +381,7 @@ onMounted(() => {
   align-items: center;
   gap: 1.75rem;
   width: 100%;
-  max-width: var(--col);
+  max-width: var(--space-col);
 }
 
 .intro {
@@ -406,7 +397,7 @@ onMounted(() => {
   margin: 0;
   font-size: clamp(1rem, 3.4vw, 1.15rem);
   line-height: 1.5;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 /* Il tasto è un link, non un <button>: porta a un'altra pagina, quindi deve
@@ -416,8 +407,8 @@ onMounted(() => {
   display: inline-block;
   min-width: 12rem;
   padding: 0.95rem 2.5rem;
-  border-radius: var(--radius);
-  background: var(--wg-correct);
+  border-radius: var(--radius-base);
+  background: var(--color-correct);
   color: #ffffff;
   font-size: 1rem;
   font-weight: 700;
@@ -440,7 +431,7 @@ onMounted(() => {
 .intro__reassure {
   margin: -0.4rem 0 0;
   font-size: 0.75rem;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 /* === La partita dimostrativa === */
@@ -469,22 +460,22 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   aspect-ratio: 1;
-  border-radius: var(--radius);
+  border-radius: var(--radius-base);
   color: #ffffff;
   font-size: clamp(1.1rem, 5vw, 1.6rem);
   font-weight: 700;
 }
 
 .demo__cell--correct {
-  background: var(--wg-correct);
+  background: var(--color-correct);
 }
 
 .demo__cell--present {
-  background: var(--wg-present);
+  background: var(--color-present);
 }
 
 .demo__cell--absent {
-  background: var(--wg-absent);
+  background: var(--color-absent);
 }
 
 /* La scheda della parola, sotto la griglia: è la metà del messaggio. Senza,
@@ -493,8 +484,8 @@ onMounted(() => {
   width: 100%;
   padding: 0.7rem 0.9rem;
   box-sizing: border-box;
-  border-radius: var(--radius);
-  background: var(--wg-surface);
+  border-radius: var(--radius-base);
+  background: var(--color-surface);
   text-align: left;
 }
 
@@ -504,7 +495,7 @@ onMounted(() => {
   gap: 0.5rem;
   margin: 0 0 0.3rem;
   font-size: 0.8rem;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 .demo__pos {
@@ -518,14 +509,14 @@ onMounted(() => {
 /* La stessa pastiglia che il gioco mostra a fine parola, stesso colore per la
    fascia B: chi arriva qui e poi gioca ritrova un segno che ha già visto.
 
-   3px e non --radius: il gioco usa due raggi di proposito, 4px per riquadri e
+   3px e non --radius-base: il gioco usa due raggi di proposito, 4px per riquadri e
    celle e 3px per le pastiglie piccole. Su una pastiglia alta un centimetro il
    raggio da riquadro la fa sembrare una pillola. */
 .demo__level {
   margin-left: auto;
   padding: 0.15rem 0.5rem;
   border-radius: 3px;
-  background: var(--wg-present);
+  background: var(--color-present);
   color: #ffffff;
   font-size: 0.62rem;
   font-weight: 700;
@@ -553,13 +544,13 @@ onMounted(() => {
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
   text-align: center;
 }
 
 .facts {
   width: 100%;
-  max-width: var(--col);
+  max-width: var(--space-col);
 }
 
 .facts__list {
@@ -570,8 +561,8 @@ onMounted(() => {
 
 .fact {
   padding: 1.1rem 1.2rem;
-  border-radius: var(--radius);
-  background: var(--wg-surface);
+  border-radius: var(--radius-base);
+  background: var(--color-surface);
   text-align: left;
 }
 
@@ -587,7 +578,7 @@ onMounted(() => {
   margin: 0;
   font-size: 0.9rem;
   line-height: 1.5;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 /* === I tuoi record === */
@@ -597,7 +588,7 @@ onMounted(() => {
    contenitore è già largo solo 26rem. */
 .you {
   width: 100%;
-  max-width: var(--col);
+  max-width: var(--space-col);
 }
 
 .you__grid {
@@ -613,8 +604,8 @@ onMounted(() => {
   gap: 0.15rem;
   margin: 0;
   padding: 0.7rem 0.4rem;
-  border-radius: var(--radius);
-  background: var(--wg-surface);
+  border-radius: var(--radius-base);
+  background: var(--color-surface);
   text-align: center;
 }
 
@@ -627,14 +618,14 @@ onMounted(() => {
 .you__label {
   font-size: 0.68rem;
   line-height: 1.3;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
 }
 
 /* === Classifica === */
 
 .board {
   width: 100%;
-  max-width: var(--col);
+  max-width: var(--space-col);
 }
 
 .board__list {
@@ -651,8 +642,8 @@ onMounted(() => {
   align-items: center;
   gap: 0.7rem;
   padding: 0.45rem 0.6rem;
-  border-radius: var(--radius);
-  background: var(--wg-surface);
+  border-radius: var(--radius-base);
+  background: var(--color-surface);
   font-size: 0.95rem;
 }
 
@@ -667,7 +658,7 @@ onMounted(() => {
   min-width: 1.5rem;
   height: 1.5rem;
   border-radius: 3px;
-  background: var(--wg-absent);
+  background: var(--color-absent);
   color: #ffffff;
   font-size: 0.78rem;
   font-weight: 700;
@@ -702,13 +693,13 @@ onMounted(() => {
 .board__note {
   margin: 0.6rem 0 0;
   font-size: 0.72rem;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
   text-align: center;
 }
 
 .foot {
   font-size: 0.75rem;
-  color: var(--wg-dim);
+  color: var(--color-text-dim);
   text-align: center;
 }
 
