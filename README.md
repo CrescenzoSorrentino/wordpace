@@ -190,7 +190,11 @@ app/pages/index.vue                  home: the pitch, Play, your records, the bo
 app/pages/play.vue                   the game page, deliberately bare
 app/utils/stats.ts                   personal records, kept in localStorage
 app/utils/share.ts                   the text of a shared run
-app/components/WordpaceGame.vue      the game (state, timer, UI) and the Vault's own state
+app/components/WordpaceGame.vue      state, timer, and the Vault's own state; the three
+                                      windows below are presentational, wired from here
+app/components/HintPanel.vue         the hints/skip window
+app/components/WordExplanation.vue   the word-explanation window, shown between levels
+app/components/GameOverModal.vue     the game-over window: score, nickname, leaderboard, share
 app/components/GameBoard.vue         the letter grid, shared by the game and the Vault
 app/components/OnScreenKeyboard.vue  the on-screen keyboard, shared by the game and the Vault
 app/components/VaultPanel.vue        the Vault screen (reads its state as props)
