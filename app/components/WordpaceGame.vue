@@ -89,6 +89,7 @@ const score = ref(0); // punti accumulati in questa partita
 const timeLeft = ref(0); // secondi rimasti sulla parola in corso
 const message = ref(""); // messaggio breve ("Not in word list", "+15 seconds!")
 const explanationTimeLeft = ref(0); // secondi rimasti per leggere la spiegazione
+const vaultExplanationTimeLeft = ref(0); // gemello di explanationTimeLeft, per il Vault
 
 // Stato della classifica (si riempie quando la partita finisce).
 const leaderboard = ref<LeaderboardEntry[]>([]); // i punteggi migliori attuali
@@ -112,8 +113,9 @@ const vaultEvaluations = ref<LetterState[][]>([]);
 // La parola appena indovinata nel Vault, mentre se ne spiega il significato —
 // null quando non c'è nulla da spiegare. Il tier avanza solo quando questa
 // torna a null (bottone "Continue" nel pannello), non subito alla vittoria.
-const vaultWonWord = ref<string | null>(null);
 const vaultOpened = ref(false);
+const vaultWonWord = ref<string | null>(null);
+const vaultLostWord = ref<string | null>(null);
 const vaultNetScore = ref(0);
 const vaultPaidGuesses = ref(0);
 
@@ -146,6 +148,7 @@ const shareState = ref<"idle" | "done" | "failed">("idle");
 let messageTimer: ReturnType<typeof setTimeout> | undefined;
 let countdownTimer: ReturnType<typeof setInterval> | undefined;
 let explanationTimer: ReturnType<typeof setInterval> | undefined;
+let vaultExplanationTimer: ReturnType<typeof setInterval> | undefined;
 
 // Quali scoperte hanno già fruttato tempo, così lo stesso verde o giallo non
 // può essere sfruttato di nuovo reinviandolo. Si azzerano a ogni nuova parola.
@@ -300,6 +303,11 @@ const currentDefinition = ref<WordEntry>(EMPTY_DEFINITION);
  */
 const explanationProgress = computed(
   () => `${(explanationTimeLeft.value / EXPLANATION_TIME) * 100}%`,
+);
+
+/** Gemella di explanationProgress, per la barra della spiegazione nel Vault. */
+const vaultExplanationProgress = computed(
+  () => `${(vaultExplanationTimeLeft.value / EXPLANATION_TIME) * 100}%`,
 );
 
 /**
@@ -586,6 +594,12 @@ function stopTimer() {
 function stopExplanationTimer() {
   clearInterval(explanationTimer);
   explanationTimer = undefined;
+}
+
+/** Gemella di stopExplanationTimer, per la spiegazione del Vault. */
+function stopVaultExplanationTimer() {
+  clearInterval(vaultExplanationTimer);
+  vaultExplanationTimer = undefined;
 }
 
 /**
@@ -962,6 +976,8 @@ function newRun() {
   vaultGuesses.value = [];
   vaultEvaluations.value = [];
   vaultWonWord.value = null;
+  vaultLostWord.value = null;
+  stopVaultExplanationTimer();
   vaultOpened.value = false;
   vaultNetScore.value = 0;
   vaultPaidGuesses.value = 0;
@@ -982,6 +998,36 @@ function advanceVaultTier() {
 function continueVaultTier() {
   vaultWonWord.value = null;
   advanceVaultTier();
+}
+
+/**
+ * Avvia il conto alla rovescia della spiegazione del Vault (vittoria o
+ * sconfitta) — gemella di startExplanation, stessi EXPLANATION_TIME secondi
+ * e la stessa doppia porta d'ingresso: allo scadere del tempo o al pulsante
+ * "Continue" dentro il pannello, finisce sempre in finishVaultExplanation.
+ */
+function startVaultExplanation() {
+  vaultExplanationTimeLeft.value = EXPLANATION_TIME;
+  vaultExplanationTimer = setInterval(() => {
+    vaultExplanationTimeLeft.value--;
+    if (vaultExplanationTimeLeft.value <= 0) {
+      finishVaultExplanation();
+    }
+  }, 1000);
+}
+
+/**
+ * Chiude la spiegazione del Vault e prosegue di conseguenza: solo uno fra
+ * vaultWonWord e vaultLostWord può essere pieno alla volta, quindi basta
+ * controllare quale dei due lo sia per sapere se il tier avanza o riparte.
+ */
+function finishVaultExplanation() {
+  stopVaultExplanationTimer();
+  if (vaultWonWord.value) {
+    continueVaultTier();
+  } else if (vaultLostWord.value) {
+    retryVaultTier();
+  }
 }
 
 /**
@@ -1012,11 +1058,23 @@ function submitVaultGuess(word: string, isFreeGuess: boolean) {
     score.value += 70 * vaultTierLevel(vaultTier.value);
     vaultNetScore.value += 70 * vaultTierLevel(vaultTier.value);
     vaultWonWord.value = word;
+    startVaultExplanation();
   } else if (isFreeGuess) {
     score.value -= cost;
     vaultNetScore.value -= cost;
     vaultPaidGuesses.value++;
   }
+  if (word !== vaultWord.value && vaultGuesses.value.length >= MAX_ATTEMPTS) {
+    vaultLostWord.value = vaultWord.value;
+    startVaultExplanation();
+  }
+}
+
+function retryVaultTier() {
+  vaultWord.value = vaultWordForTier(vaultTier.value);
+  vaultLostWord.value = null;
+  vaultGuesses.value = [];
+  vaultEvaluations.value = [];
 }
 
 watch(vaultPanelOpen, (open) => {
@@ -1099,11 +1157,12 @@ watch([status, hintPanelOpen], ([current, hintsOpen]) => {
 });
 
 // Il tempo scorre anche dentro il Vault, come per gli aiuti: aprirlo non è
-// più una pausa gratuita. Si ferma solo mentre leggi la spiegazione della
-// parola appena vinta (vaultWonWord pieno), esattamente come tra un livello e
-// l'altro nel gioco principale — non mentre stai ancora indovinando.
-watch(vaultWonWord, (reading) => {
-  if (reading) {
+// più una pausa gratuita. Si ferma solo mentre leggi una spiegazione —
+// vittoria o sconfitta, vaultWonWord o vaultLostWord pieno — esattamente
+// come tra un livello e l'altro nel gioco principale, non mentre stai ancora
+// indovinando.
+watch([vaultWonWord, vaultLostWord], ([won, lost]) => {
+  if (won || lost) {
     stopTimer();
   } else if (status.value === "playing") {
     startCountdown();
@@ -1127,6 +1186,7 @@ onBeforeUnmount(() => {
   speechSynthesis.removeEventListener("voiceschanged", pickEnglishVoice);
   stopTimer();
   stopExplanationTimer();
+  stopVaultExplanationTimer();
   document.body.style.overflow = ""; // mai lasciare la pagina bloccata
 });
 </script>
@@ -1620,11 +1680,14 @@ onBeforeUnmount(() => {
       :evaluations="vaultEvaluations"
       :solved-words="solvedWords"
       :won-word="vaultWonWord"
+      :lost-word="vaultLostWord"
       :guess-cost="vaultGuessCost"
       :time-left="timeDisplay"
+      :explanation-time-left="vaultExplanationTimeLeft"
+      :explanation-progress="vaultExplanationProgress"
       @guess="submitVaultGuess"
       @close="vaultPanelOpen = false"
-      @continue="continueVaultTier"
+      @continue="finishVaultExplanation"
     />
   </section>
 </template>

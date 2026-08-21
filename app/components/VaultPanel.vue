@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
+  EXPLANATION_TIME,
   isValidWord,
   keyStatesFor,
   MAX_ATTEMPTS,
@@ -16,8 +17,11 @@ const props = defineProps<{
   evaluations: LetterState[][];
   solvedWords: { word: string; wasReview: boolean }[];
   wonWord: string | null;
+  lostWord: string | null;
   guessCost: { cost: number; affordable: boolean };
   timeLeft: string;
+  explanationTimeLeft: number;
+  explanationProgress: string;
 }>();
 
 const emit = defineEmits<{
@@ -35,9 +39,9 @@ const freeGuess = ref("");
 const error = ref("");
 const listOpen = ref(false);
 
-// La definizione della parola appena vinta, mostrata mentre `wonWord` non è
-// null. Suo scarico proprio, non quello del gioco principale: qui la parola
-// è `wonWord`, non `answer`.
+// La definizione della parola appena spiegata — vinta o persa, `wonWord` o
+// `lostWord` — mostrata mentre uno dei due non è null. Suo scarico proprio,
+// non quello del gioco principale: qui la parola non è mai `answer`.
 const definition = ref<WordEntry>(MISSING_DEFINITION);
 
 async function fetchDefinition(word: string) {
@@ -53,6 +57,13 @@ async function fetchDefinition(word: string) {
 
 watch(
   () => props.wonWord,
+  (word) => {
+    if (word) fetchDefinition(word);
+  },
+);
+
+watch(
+  () => props.lostWord,
   (word) => {
     if (word) fetchDefinition(word);
   },
@@ -169,7 +180,8 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
 <template>
   <!-- Stessa schermata del gioco principale (HUD, riga di stato, griglia):
        qui "Time" mostra lo stesso timeLeft del gioco principale, che il
-       genitore ferma solo mentre leggi la spiegazione di una vittoria. -->
+       genitore ferma solo mentre leggi una spiegazione (vittoria o
+       sconfitta). -->
   <section class="wordle" aria-label="Vault">
     <div class="wordle__hud">
       <div class="wordle__stat">
@@ -318,9 +330,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
     </div>
 
     <!-- Spiegazione della parola vinta: stessa finestra del gioco principale,
-         senza barra del tempo (qui non c'è fretta) e senza pulsante audio
-         (per ora). Blocca il resto finché non premi Continue, esattamente
-         come le altre finestre di questo tipo. -->
+         barra del tempo inclusa — si chiude da sola in EXPLANATION_TIME
+         secondi, o subito col pulsante, esattamente come tra un livello e
+         l'altro. Senza pulsante audio (per ora). -->
     <div v-if="wonWord" class="wordle__overlay">
       <div
         class="wordle__result"
@@ -328,8 +340,82 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
         aria-modal="true"
         aria-label="Word explanation"
       >
+        <div
+          class="wordle__progress"
+          role="progressbar"
+          aria-label="Time left to read"
+          :aria-valuenow="explanationTimeLeft"
+          :aria-valuemax="EXPLANATION_TIME"
+        >
+          <div
+            class="wordle__progress-bar"
+            :style="{ width: explanationProgress }"
+          />
+        </div>
+
         <p class="wordle__result-label">The word was</p>
         <h2 class="wordle__result-title">{{ wonWord.toUpperCase() }}</h2>
+
+        <p
+          v-if="definition.pos || definition.ipa || definition.cefr"
+          class="wordle__definition-meta"
+        >
+          <span v-if="definition.pos">{{ definition.pos }}</span>
+          <span v-if="definition.ipa" class="wordle__definition-ipa">
+            {{ definition.ipa }}
+          </span>
+          <span
+            v-if="definition.cefr"
+            class="wordle__definition-level"
+            :class="`wordle__definition-level--${definition.cefr[0]!.toLowerCase()}`"
+          >
+            {{ definition.cefr }}
+          </span>
+        </p>
+
+        <p class="wordle__definition wordle__definition--en">
+          {{ definition.en }}
+        </p>
+        <p
+          v-if="definition.example"
+          class="wordle__definition wordle__definition--example"
+        >
+          “{{ definition.example }}”
+        </p>
+
+        <button class="wordle__again" type="button" @click="emit('continue')">
+          Continue
+        </button>
+      </div>
+    </div>
+
+    <!-- Gemella della finestra qui sopra, per quando i sei tentativi finiscono
+         senza aver indovinato: stessa barra, stessa spiegazione, stesso
+         pulsante — solo la parola arriva da lostWord (rivelata, non
+         indovinata) e chi la chiude fa ripartire lo stesso tier da capo
+         invece di avanzare. -->
+    <div v-if="lostWord" class="wordle__overlay">
+      <div
+        class="wordle__result"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Word explanation"
+      >
+        <div
+          class="wordle__progress"
+          role="progressbar"
+          aria-label="Time left to read"
+          :aria-valuenow="explanationTimeLeft"
+          :aria-valuemax="EXPLANATION_TIME"
+        >
+          <div
+            class="wordle__progress-bar"
+            :style="{ width: explanationProgress }"
+          />
+        </div>
+
+        <p class="wordle__result-label">Out of tries — the word was</p>
+        <h2 class="wordle__result-title">{{ lostWord.toUpperCase() }}</h2>
 
         <p
           v-if="definition.pos || definition.ipa || definition.cefr"
@@ -593,6 +679,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
 }
 
 .wordle__result {
+  position: relative; /* riferimento per la barra del tempo, ancorata in alto */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -616,6 +703,25 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onPhysicalKey));
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--wg-dim);
+}
+
+/* Barra della spiegazione: stessa regola del gioco principale, duplicata
+   qui per lo stesso motivo di sempre (stili scoped). */
+.wordle__progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: var(--wg-border);
+  border-radius: 8px 8px 0 0;
+  overflow: hidden;
+}
+
+.wordle__progress-bar {
+  height: 100%;
+  background: var(--wg-correct);
+  transition: width 1s linear;
 }
 
 /* Spiegazione della parola vinta: stessa regole del gioco principale,
